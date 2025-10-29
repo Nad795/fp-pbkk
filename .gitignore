@@ -106,7 +106,6 @@ ml/testing/Sentiment_dataset.csv
 
 # Build artifacts
 **/build/
-**/dist/
 **/public/build/
 **/public/hot
 **/public/storage
