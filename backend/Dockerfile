@@ -31,7 +31,10 @@ RUN mkdir -p /var/www/html/database && \
     chmod 664 /var/www/html/database/database.sqlite
 
 # Set permissions
-RUN mkdir -p /var/www/html/storage/logs && \
+RUN mkdir -p /var/www/html/storage/logs \
+    /var/www/html/storage/framework/cache \
+    /var/www/html/storage/framework/sessions \
+    /var/www/html/storage/framework/views && \
     chmod -R 775 /var/www/html/storage && \
     chmod -R 775 /var/www/html/bootstrap/cache
 

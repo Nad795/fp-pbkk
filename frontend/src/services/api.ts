@@ -1,5 +1,6 @@
 // API Service untuk komunikasi dengan Laravel backend
-const API_BASE_URL = 'http://localhost:8000'
+// use Vite env when available so deployments can override the base URL via docker-compose
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export interface AnalysisResult {
   text: string
