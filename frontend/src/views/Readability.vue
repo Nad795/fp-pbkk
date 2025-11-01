@@ -138,7 +138,7 @@
                 <div v-if="expanded[i]" class="overflow-hidden">
                   <div class="flex items-center mt-2">
                     <span class="mr-2 font-bold text-green-500">{{ item.score }}</span>
-                    <span class="text-sm text-gray-500">/ 100</span>
+                    <span class="text-sm text-gray-500">/ 10</span>
                   </div>
 
                   <div class="w-full h-2 mt-2 bg-gray-200 rounded-full overflow-hidden">
@@ -165,213 +165,198 @@ import { ref, watch, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import Tooltip from '@/components/Tooltip.vue'
 
-// Sample data readability (default values)
 const defaultFleschData = [
   {
-    score: 75.0,
-    description: 'Berdasarkan Flesch Kincaid Reading Ease, teks ini memiliki tingkat kemudahan membaca sekitar 75.0 dari 100. Teks ini dapat dengan mudah dipahami oleh remaja berusia 12 hingga 15 tahun.',
+    score: 7.5,
+    description:
+      'Berdasarkan Flesch Kincaid Reading Ease, teks ini memiliki tingkat kemudahan membaca sekitar 7.5 dari 10. Teks ini mudah dipahami oleh remaja berusia 12 hingga 15 tahun.',
     statistics: {
-        syllables: 548,
-        words: 132,
-        sentences: 21,
-        avgWordLength: 3.2,
-        avgSentenceLength: 6.5
+      syllables: 548,
+      words: 132,
+      sentences: 21,
+      avgWordLength: 3.2,
+      avgSentenceLength: 6.5,
     },
   },
   {
-    title: "Flesch Kincaid Reading Ease",
-    score: 75,
-    level: "Mudah dibaca",
-    formula: "206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)",
+    title: 'Flesch Kincaid Reading Ease',
+    score: 7.5,
+    level: 'Mudah dibaca',
+    formula: '206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)',
   },
   {
-    title: "Flesch Kincaid Grade Level",
-    score: 75,
-    level: "Mudah dibaca",
-    formula: "0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59",
+    title: 'Flesch Kincaid Grade Level',
+    score: 7.0,
+    level: 'Mudah dibaca',
+    formula:
+      '0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59',
   },
   {
-    title: "Gunning Fog Index",
-    score: 68,
-    level: "Sedikit sulit",
-    formula: "0.4 × [(words/sentences) + 100 × (complex_words/words)]",
+    title: 'Gunning Fog Index',
+    score: 6.8,
+    level: 'Sedikit sulit',
+    formula: '0.4 × [(words/sentences) + 100 × (complex_words/words)]',
   },
   {
-    title: "SMOG Index",
-    score: 72,
-    level: "Cukup mudah",
-    formula: "1.0430 × √(polysyllables × (30/sentences)) + 3.1291",
+    title: 'SMOG Index',
+    score: 7.2,
+    level: 'Cukup mudah',
+    formula: '1.0430 × √(polysyllables × (30/sentences)) + 3.1291',
   },
   {
-    title: "Coleman Liau Index",
-    score: 70,
-    level: "Mudah dibaca",
-    formula: "0.0588 × L - 0.296 × S - 15.8",
+    title: 'Coleman Liau Index',
+    score: 7.0,
+    level: 'Mudah dibaca',
+    formula: '0.0588 × L - 0.296 × S - 15.8',
   },
-];
+]
 
-// Reactive data
 const fleschData = ref([...defaultFleschData])
 
-// === Load data dari backend (integrasi) ===
 const loadAnalysisData = () => {
   const saved = localStorage.getItem('analysisResult')
-  
-  if (!saved) {
-    return
-  }
+  if (!saved) return
 
   try {
     const parsed = JSON.parse(saved)
 
-    // Kategori berdasarkan skor Flesch Reading Ease
     const getReadabilityCategory = (score) => {
-      if (score >= 90) return 'Sangat Mudah'
-      if (score >= 80) return 'Mudah'
-      if (score >= 70) return 'Cukup Mudah'
-      if (score >= 60) return 'Standar'
-      if (score >= 50) return 'Cukup Sulit'
-      if (score >= 30) return 'Sulit'
+      if (score >= 9) return 'Sangat Mudah'
+      if (score >= 8) return 'Mudah'
+      if (score >= 7) return 'Cukup Mudah'
+      if (score >= 6) return 'Standar'
+      if (score >= 5) return 'Cukup Sulit'
+      if (score >= 3) return 'Sulit'
       return 'Sangat Sulit'
     }
 
-    // Pastikan data valid
-    if (!parsed || typeof parsed !== 'object') {
-      return
-    }
-
-    // Extract values dengan fallback yang aman
     const readabilityScore = parseFloat(parsed.readability) || 0
     const wordCount = parseInt(parsed.word_count) || 0
     const sentenceCount = parseInt(parsed.sentence_count) || 0
-    
-    // Handle negative readability scores - untuk display kita buat positif tapi tetap realistis
+
     let adjustedScore
     if (readabilityScore < 0) {
-      // Skor negatif biasanya berarti teks sangat sulit
-      adjustedScore = Math.min(30, Math.abs(readabilityScore / 3)) // Convert negative to low positive
+      adjustedScore = Math.min(3, Math.abs(readabilityScore / 30)) // konversi negatif jadi rendah
     } else {
-      adjustedScore = Math.min(100, Math.max(0, readabilityScore))
+      adjustedScore = Math.min(10, Math.max(0, readabilityScore / 10)) // skala 0–10
     }
-    
-    const category = getReadabilityCategory(adjustedScore)
-    const avgSentenceLength = sentenceCount > 0 ? (wordCount / sentenceCount) : 0
 
-    // Update dengan data real dari backend
+    const category = getReadabilityCategory(adjustedScore)
+    const avgSentenceLength =
+      sentenceCount > 0 ? wordCount / sentenceCount : 0
+
     fleschData.value = [
       {
         score: adjustedScore,
-        description: `Berdasarkan analisis Flesch Reading Ease, teks memiliki skor keterbacaan ${adjustedScore.toFixed(1)} dari 100. Kategori: ${category}.`,
+        description: `Berdasarkan analisis Flesch Reading Ease, teks memiliki skor keterbacaan ${adjustedScore.toFixed(
+          1
+        )} dari 10. Kategori: ${category}.`,
         statistics: {
-          syllables: Math.floor(wordCount * 1.5), // Estimasi suku kata
+          syllables: Math.floor(wordCount * 1.5),
           words: wordCount,
           sentences: sentenceCount,
-          avgWordLength: wordCount > 0 && parsed.text ? (parsed.text.replace(/\s+/g, '').length / wordCount).toFixed(1) : 5.0,
-          avgSentenceLength: avgSentenceLength.toFixed(1)
-        }
+          avgWordLength:
+            wordCount > 0 && parsed.text
+              ? (
+                  parsed.text.replace(/\s+/g, '').length / wordCount
+                ).toFixed(1)
+              : 5.0,
+          avgSentenceLength: avgSentenceLength.toFixed(1),
+        },
       },
       {
-        title: "Flesch Kincaid Reading Ease",
+        title: 'Flesch Kincaid Reading Ease',
         score: adjustedScore,
         level: category,
-        formula: "206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)",
+        formula:
+          '206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)',
       },
       {
-        title: "Flesch Kincaid Grade Level",
-        score: Math.max(5, adjustedScore - 10),
-        level: getReadabilityCategory(Math.max(5, adjustedScore - 10)),
-        formula: "0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59",
+        title: 'Flesch Kincaid Grade Level',
+        score: Math.max(0.5, adjustedScore - 1),
+        level: getReadabilityCategory(Math.max(0.5, adjustedScore - 1)),
+        formula:
+          '0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59',
       },
       {
-        title: "Gunning Fog Index",
-        score: Math.max(10, adjustedScore - 5),
-        level: getReadabilityCategory(Math.max(10, adjustedScore - 5)),
-        formula: "0.4 × [(words/sentences) + 100 × (complex_words/words)]",
+        title: 'Gunning Fog Index',
+        score: Math.max(1, adjustedScore - 0.5),
+        level: getReadabilityCategory(Math.max(1, adjustedScore - 0.5)),
+        formula:
+          '0.4 × [(words/sentences) + 100 × (complex_words/words)]',
       },
       {
-        title: "SMOG Index",
-        score: Math.max(15, adjustedScore + 5),
-        level: getReadabilityCategory(Math.max(15, adjustedScore + 5)),
-        formula: "1.0430 × √(polysyllables × (30/sentences)) + 3.1291",
+        title: 'SMOG Index',
+        score: Math.min(10, adjustedScore + 0.5),
+        level: getReadabilityCategory(Math.min(10, adjustedScore + 0.5)),
+        formula:
+          '1.0430 × √(polysyllables × (30/sentences)) + 3.1291',
       },
       {
-        title: "Coleman Liau Index",
-        score: Math.max(20, adjustedScore - 8),
-        level: getReadabilityCategory(Math.max(20, adjustedScore - 8)),
-        formula: "0.0588 × L - 0.296 × S - 15.8",
+        title: 'Coleman Liau Index',
+        score: Math.max(2, adjustedScore - 0.8),
+        level: getReadabilityCategory(Math.max(2, adjustedScore - 0.8)),
+        formula: '0.0588 × L - 0.296 × S - 15.8',
       },
     ]
-    
-    // Force re-render animasi
+
     setTimeout(() => {
       updateAnimation()
     }, 100)
-    
-  } catch (error) {
-    // Error handling tanpa console log
-  }
+  } catch {}
 }
 
 // === Animasi Circle Bar ===
-const circumference = 2 * Math.PI * 80;
-// Reactive untuk animasi stroke circle bar
+const circumference = 2 * Math.PI * 80
 const animatedOffset = ref(circumference)
 
-// Jalankan animasi pertama kali dan saat score berubah
 const updateAnimation = () => {
   const target = fleschData.value[0].score
-  animatedOffset.value = circumference - (target / 100) * circumference
+  // Sekarang target dibagi 10 (bukan 100)
+  animatedOffset.value = circumference - (target / 10) * circumference
 }
 
 onMounted(() => {
-  // Load data dari backend dulu
   loadAnalysisData()
-  
-  // Delay sedikit agar animasi terlihat
   setTimeout(updateAnimation, 200)
 })
 
-// Kalau skor berubah (misal dihitung ulang)
 watch(
   () => fleschData.value[0].score,
-  () => {
-    updateAnimation()
-  }
+  () => updateAnimation()
 )
 
 // === Expandable Sections ===
-const expanded = ref(fleschData.value.slice(1).map(() => true)) // semua terbuka saat awal
+const expanded = ref(fleschData.value.slice(1).map(() => true))
 const toggleExpand = (i) => {
   expanded.value[i] = !expanded.value[i]
 }
 
-// Animasi Bar di Expandable Sections
+// Animasi progress bar
 const progressWidths = ref(fleschData.value.slice(1).map(() => 0))
-
 onMounted(() => {
   fleschData.value.slice(1).forEach((item, i) => {
     setTimeout(() => {
-      progressWidths.value[i] = item.score
-    }, 300 + i * 150) // efek berurutan
+      progressWidths.value[i] = (item.score / 10) * 100
+    }, 300 + i * 150)
   })
 })
-
-// Watch untuk update progress bars ketika data berubah
-watch(fleschData, (newData) => {
-  if (newData && newData.length > 1) {
-    // Reset progressWidths first
-    progressWidths.value = newData.slice(1).map(() => 0)
-    
-    // Then animate each bar
-    newData.slice(1).forEach((item, i) => {
-      setTimeout(() => {
-        if (progressWidths.value[i] !== undefined) {
-          progressWidths.value[i] = item.score || 0
-        }
-      }, 300 + i * 150) // efek berurutan
-    })
-  }
-}, { deep: true })
+watch(
+  fleschData,
+  (newData) => {
+    if (newData && newData.length > 1) {
+      progressWidths.value = newData.slice(1).map(() => 0)
+      newData.slice(1).forEach((item, i) => {
+        setTimeout(() => {
+          if (progressWidths.value[i] !== undefined) {
+            progressWidths.value[i] = (item.score / 10) * 100
+          }
+        }, 300 + i * 150)
+      })
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
