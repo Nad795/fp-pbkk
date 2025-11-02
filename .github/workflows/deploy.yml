@@ -1,0 +1,39 @@
+name: Deploy Stack
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Ref (branch, tag, or SHA) to deploy"
+        required: false
+        default: "main"
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      TARGET_REF: ${{ github.event.inputs.git_ref || 'main' }}
+
+    steps:
+      - name: Prepare SSH known hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/nadine/fp-pbkk
+            git fetch origin "$TARGET_REF"
+            git checkout "$TARGET_REF"
+            git pull origin "$TARGET_REF"
+            docker compose up -d --build --remove-orphans
+            docker compose ps
