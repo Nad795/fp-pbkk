@@ -35,5 +35,5 @@ jobs:
             git fetch origin "$TARGET_REF"
             git checkout "$TARGET_REF"
             git pull origin "$TARGET_REF"
-            docker compose up -d --build --remove-orphans
-            docker compose ps
+            docker-compose up -d --build --remove-orphans
+            docker-compose ps
