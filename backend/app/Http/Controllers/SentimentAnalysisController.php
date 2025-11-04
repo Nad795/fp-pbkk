@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 
 class SentimentAnalysisController extends Controller
 {
@@ -32,9 +33,24 @@ class SentimentAnalysisController extends Controller
 
         // Handle file upload atau text input
         if ($request->hasFile('file')) {
-            $text = $this->extractTextFromFile($request->file('file'));
+            $file = $request->file('file');
+            $text = $this->extractTextFromFile($file);
+
+            Log::channel('user_activity')->info('User uploaded a file', [
+                'filename' => $file->getClientOriginalName(),
+                'filesize' => $file->getSize(),
+                'ip' => $request->ip(),
+                'time' => now()->toDateTimeString(),
+            ]);
+
         } else {
             $text = $request->input('text');
+
+            Log::channel('user_activity')->info('User submitted text input', [
+                'length' => strlen($text ?? ''),
+                'ip' => $request->ip(),
+                'time' => now()->toDateTimeString(),
+            ]);
         }
 
         if (!$text) {
