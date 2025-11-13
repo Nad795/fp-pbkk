@@ -64,22 +64,50 @@ class SentimentAnalysisController extends Controller
         $sentimentResult = $this->analyzeSentiment($text);
 
         // Analisis Keterbacaan (Flesch Reading Ease)
-        $readability = $this->analyzeReadability($text);
+        $readabilityResult = $this->analyzeReadability($text);
 
         // Match sample response: truncate text to 500 chars with ellipsis
         $displayText = strlen($text) > 500 ? substr($text, 0, 500).'...' : $text;
 
+        // return response()->json([
+        //     'success' => true,
+        //     'text' => $displayText,
+        //     'sentiment' => $sentimentResult['sentiment'],
+        //     'sentiment_score' => $sentimentResult['score'],
+        //     'sentiment_details' => $sentimentResult['details'],
+        //     'readability' => $readability,
+        //     'readability_category' => $this->getReadabilityCategory($readability),
+        //     'word_count' => str_word_count($text),
+        //     'sentence_count' => count(preg_split('/[.!?]+/', $text, -1, PREG_SPLIT_NO_EMPTY))
+        // ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
         return response()->json([
-            'success' => true,
+            'success' => true, // Opsional, tapi baik untuk debugging
             'text' => $displayText,
+
+            // Data Sentimen
             'sentiment' => $sentimentResult['sentiment'],
             'sentiment_score' => $sentimentResult['score'],
             'sentiment_details' => $sentimentResult['details'],
-            'readability' => $readability,
-            'readability_category' => $this->getReadabilityCategory($readability),
-            'word_count' => str_word_count($text),
-            'sentence_count' => count(preg_split('/[.!?]+/', $text, -1, PREG_SPLIT_NO_EMPTY))
+
+            // Data Keterbacaan
+            'readability' => $readabilityResult['score'],
+            'readability_category' => $this->getReadabilityCategory($readabilityResult['score']),
+            'word_count' => $readabilityResult['word_count'],
+            'sentence_count' => $readabilityResult['sentence_count'],
+            
+            // Statistik Detail Flesch (Sesuai FleschStatistics di api.ts)
+            'statistics' => [
+                'syllable_count' => $readabilityResult['syllable_count'],
+                'avg_word_length' => $readabilityResult['avg_word_length'],
+                'avg_sentence_length' => $readabilityResult['avg_sentence_length']
+            ],
+
+            // Data Tabel (Sesuai EntityThemeData[] di api.ts)
+            'entitas_terdeteksi' => $sentimentResult['entitas'] ?? [],
+            'tema_terdeteksi' => $sentimentResult['tema'] ?? [],
         ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        
     }
 
     private function extractTextFromFile($file)
@@ -144,16 +172,17 @@ class SentimentAnalysisController extends Controller
         throw new \Exception('Supported file formats: .txt, .pdf, and .docx');
     }
 
+    // Perbarui fungsi analyzeSentiment secara keseluruhan
     private function analyzeSentiment($text)
     {
         $apiKey = \Illuminate\Support\Facades\Config::get('app.gemini_api_key') ?? $_ENV['GEMINI_API_KEY'] ?? '';
         $apiUrl = \Illuminate\Support\Facades\Config::get('app.gemini_api_url') ?? $_ENV['GEMINI_API_URL'] ?? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
-        // Prompt untuk Gemini
-        $prompt = "Analisis sentimen dari berita berikut: '{$text}'. " .
-                  "Apakah sentimennya positif, negatif, atau netral? " .
-                  "Berikan alasannya dan highlight kata-kata penyebabnya. " .
-                  "Format jawaban: Sentimen: [Positif/Negatif/Netral], Skor: [0-1], Alasan: [penjelasan], Kata Kunci: [kata-kata penting]";
+        // PROMPT JSON LENGKAP
+        $prompt = "Analisis sentimen, entitas, dan tema utama dari berita berikut: '{$text}'. " .
+                  "Hasilkan output HANYA dalam format JSON. Jangan ada teks atau penjelasan lain di luar objek JSON. " .
+                  "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'details' (alasan mendalam), 'entitas', dan 'tema'. " .
+                  "Untuk 'entitas' dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float).";
 
         try {
             $response = Http::timeout(30)->post("{$apiUrl}?key={$apiKey}", [
@@ -169,41 +198,54 @@ class SentimentAnalysisController extends Controller
             if ($response->successful()) {
                 $result = $response->json();
                 $geminiText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                
+                $geminiData = json_decode($geminiText, true);
 
-                // Parse response Gemini
-                return $this->parseGeminiResponse($geminiText);
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($geminiData)) {
+                    // Fallback jika parsing JSON gagal
+                    return $this->simpleSentimentAnalysis($text, true); // true = minta data lengkap (entitas/tema kosong)
+                }
+
+                return [
+                    'sentiment' => $geminiData['sentiment'] ?? 'Neutral',
+                    'score' => $geminiData['score'] ?? 0.5,
+                    'details' => $geminiData['details'] ?? 'Analisis detail tidak tersedia.',
+                    'entitas' => $geminiData['entitas'] ?? [], // Penting: Entitas & Tema dari Gemini
+                    'tema' => $geminiData['tema'] ?? []
+                ];
+
             } else {
-                // Fallback ke analisis sederhana
-                return $this->simpleSentimentAnalysis($text);
+                return $this->simpleSentimentAnalysis($text, true); 
             }
         } catch (\Exception $e) {
-            // Fallback jika Gemini error
-            return $this->simpleSentimentAnalysis($text);
+            return $this->simpleSentimentAnalysis($text, true);
         }
     }
 
-    private function parseGeminiResponse($geminiText)
-    {
-        // Ekstrak sentimen dari response Gemini
-        if (stripos($geminiText, 'positif') !== false) {
-            $sentiment = 'Positive';
-            $score = 0.75;
-        } elseif (stripos($geminiText, 'negatif') !== false) {
-            $sentiment = 'Negative';
-            $score = 0.25;
-        } else {
-            $sentiment = 'Neutral';
-            $score = 0.5;
-        }
 
-        return [
-            'sentiment' => $sentiment,
-            'score' => $score,
-            'details' => $geminiText
-        ];
-    }
+    // private function parseGeminiResponse($geminiText)
+    // {
+    //     // Ekstrak sentimen dari response Gemini
+    //     if (stripos($geminiText, 'positif') !== false) {
+    //         $sentiment = 'Positive';
+    //         $score = 0.75;
+    //     } elseif (stripos($geminiText, 'negatif') !== false) {
+    //         $sentiment = 'Negative';
+    //         $score = 0.25;
+    //     } else {
+    //         $sentiment = 'Neutral';
+    //         $score = 0.5;
+    //     }
 
-    private function simpleSentimentAnalysis($text)
+    //     return [
+    //         'sentiment' => $sentiment,
+    //         'score' => $score,
+    //         'details' => $geminiText
+    //     ];
+    // }
+
+  
+    private function simpleSentimentAnalysis($text, $fullData = false)
     {
         // Fallback sederhana jika Gemini error
         $positiveWords = ['baik', 'bagus', 'hebat', 'senang', 'sukses', 'positif', 'maju', 'unggul', 'meningkat', 'berkembang'];
@@ -222,12 +264,20 @@ class SentimentAnalysisController extends Controller
         }
 
         if ($positiveCount > $negativeCount) {
-            return ['sentiment' => 'Positive', 'score' => 0.7, 'details' => 'Analisis fallback: ditemukan kata positif'];
+            $result = ['sentiment' => 'Positive', 'score' => 0.7, 'details' => 'Analisis fallback: ditemukan kata positif'];
         } elseif ($negativeCount > $positiveCount) {
-            return ['sentiment' => 'Negative', 'score' => 0.3, 'details' => 'Analisis fallback: ditemukan kata negatif'];
+            $result = ['sentiment' => 'Negative', 'score' => 0.3, 'details' => 'Analisis fallback: ditemukan kata negatif'];
         } else {
-            return ['sentiment' => 'Neutral', 'score' => 0.5, 'details' => 'Analisis fallback: netral'];
+            $result = ['sentiment' => 'Neutral', 'score' => 0.5, 'details' => 'Analisis fallback: netral (jumlah kata positif/negatif seimbang atau tidak ada)'];
         }
+
+        // BAGIAN KRITIS: Menambahkan kunci Entitas dan Tema kosong saat diminta data lengkap
+        if ($fullData) {
+            $result['entitas'] = [];
+            $result['tema'] = [];
+        }
+        
+        return $result;
     }
 
     private function analyzeReadability($text)
@@ -242,17 +292,30 @@ class SentimentAnalysisController extends Controller
         $wordCount = max(1, count($words));
         $sentenceCount = max(1, count($sentences));
         $syllableCount = 0;
+        $totalCharLength = 0;
 
         foreach ($words as $word) {
             $syllableCount += $this->countSyllables($word);
+            $totalCharLength += strlen($word);
         }
+
+        $avgWordLength = $wordCount > 0 ? round($totalCharLength / $wordCount, 2) : 0;
+        $avgSentenceLength = $sentenceCount > 0 ? round($wordCount / $sentenceCount, 2) : 0;
 
         $score = 206.835
              - (1.015 * ($wordCount / $sentenceCount))
              - (84.6 * ($syllableCount / $wordCount));
 
-        return round($score, 2);
+        return [
+            'score' => round($score, 2),
+            'word_count' => $wordCount,
+            'sentence_count' => $sentenceCount,
+            'syllable_count' => $syllableCount, // BARU
+            'avg_word_length' => $avgWordLength, // BARU
+            'avg_sentence_length' => $avgSentenceLength // BARU
+        ];
     }
+    // Hapus atau abaikan fungsi analyzeReadability yang lama jika masih ada.
 
     private function getReadabilityCategory($score)
     {
