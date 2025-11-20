@@ -374,13 +374,17 @@ const sentimentData = ref({
     neutral: 100.0,
     overallScore: 0.0,
     overallSentiment: 'netral'
+
+    // Data utama dari API
+    overallScore: 0.0, // Menerima sentiment_score dari API
+    overallSentiment: 'netral' // Menerima sentiment dari API
 });
 
 const entitasData = ref([]);
 const temaData = ref([]);
 
 // === Load data dari backend ===
-onMounted(() => {
+const loadAnalysisData = () => {
   const saved = localStorage.getItem('analysisResult')
   if (!saved) {
     console.log('Tidak ada data analisis sentiment. Menggunakan data default.')
@@ -392,68 +396,52 @@ onMounted(() => {
     console.log('Data sentiment ditemukan:', parsed)
 
     if (parsed.sentiment && parsed.sentiment_score !== undefined) {
+      
+      // --- 1. AMBIL DATA UTAMA DARI API (SANGAT KRITIS) ---
       const sentimentLabel = parsed.sentiment.toLowerCase()
       const sentimentScore = parseFloat(parsed.sentiment_score) || 0
 
-      // Konversi skor sentiment dari backend (-1 to 1) ke persentase
-      let positive = 0, negative = 0, neutral = 100
-
-      if (sentimentLabel.includes('positive') || sentimentLabel.includes('positif')) {
-        positive = (sentimentScore * 100).toFixed(1)
-        negative = ((1 - sentimentScore) * 30).toFixed(1) // Sisa dibagi antara negative dan neutral
-        neutral = (100 - positive - negative).toFixed(1)
-        sentimentData.value.overallSentiment = 'positif'
-      } else if (sentimentLabel.includes('negative') || sentimentLabel.includes('negatif')) {
-        negative = (Math.abs(sentimentScore) * 100).toFixed(1)
-        positive = ((1 - Math.abs(sentimentScore)) * 20).toFixed(1)
-        neutral = (100 - negative - positive).toFixed(1)
-        sentimentData.value.overallSentiment = 'negatif'
-      } else {
-        // Neutral
-        neutral = 60
-        positive = 25
-        negative = 15
-        sentimentData.value.overallSentiment = 'netral'
+      // *Hapus semua logika perhitungan persentase manual (positive/negative/neutral)*
+      // Sebagai gantinya, Anda *harus* meminta API untuk mengembalikan persentase ini,
+      // atau menggunakan logika yang sederhana untuk visualisasi (skor -1.0 hingga 1.0)
+      
+      // Contoh sederhana konversi skor (-1 hingga 1) ke persentase visual:
+      let pos = 0, neg = 0, neu = 0;
+      if (sentimentScore >= 0.2) { // Positif
+        pos = (sentimentScore * 50) + 50; // Skala ke 50-100
+        neg = 100 - pos;
+        neu = 0;
+      } else if (sentimentScore <= -0.2) { // Negatif
+        neg = (Math.abs(sentimentScore) * 50) + 50;
+        pos = 100 - neg;
+        neu = 0;
+      } else { // Netral/Dekat Nol
+        neu = 60;
+        pos = 25;
+        neg = 15;
       }
-
+      
+      // Update data Sentimen Utama
       sentimentData.value = {
-        positive: parseFloat(positive),
-        negative: parseFloat(negative),
-        neutral: parseFloat(neutral),
+        positive: pos, // Menggunakan perhitungan sederhana/visual
+        negative: neg,
+        neutral: neu,
         overallScore: sentimentScore,
-        overallSentiment: sentimentData.value.overallSentiment
+        overallSentiment: sentimentLabel.includes('positif') ? 'positif' : (sentimentLabel.includes('negatif') ? 'negatif' : 'netral')
       }
 
-      // Parse entitas dan tema dari sentiment_details jika tersedia
-      if (parsed.sentiment_details) {
-        // Ekstrak entitas dari teks analisis (simplified)
-        const details = parsed.sentiment_details.toLowerCase()
-        const sampleEntitas = []
-        const sampleTema = []
+      // --- 2. AMBIL DATA TABEL LANGSUNG DARI API (ENTITAS & TEMA) ---
+      // Ini adalah perbaikan inti dari masalah Magnitudo/Tema!
+      entitasData.value = parsed.entitas_terdeteksi || []
+      temaData.value = parsed.tema_terdeteksi || []
 
-        // Deteksi beberapa entitas umum dari teks
-        if (details.includes('presiden')) sampleEntitas.push({ nama: "Presiden", magnitudo: 3.0, sentimen: sentimentScore })
-        if (details.includes('pemerintah')) sampleEntitas.push({ nama: "Pemerintah", magnitudo: 4.0, sentimen: sentimentScore })
-        if (details.includes('rakyat')) sampleEntitas.push({ nama: "Rakyat", magnitudo: 2.5, sentimen: sentimentScore * 0.8 })
-        if (details.includes('bantuan')) sampleTema.push({ nama: "Bantuan Sosial", magnitudo: 3.5, sentimen: sentimentScore })
-        if (details.includes('korupsi')) {
-          sampleTema.push({ nama: "Korupsi", magnitudo: 5.0, sentimen: -0.8 })
-          sampleEntitas.push({ nama: "Lembaga Negara", magnitudo: 4.5, sentimen: -0.7 })
-        }
-
-        entitasData.value = sampleEntitas.length > 0 ? sampleEntitas : [
-          { nama: "Entitas Terdeteksi", magnitudo: 2.0, sentimen: sentimentScore }
-        ]
-        
-        temaData.value = sampleTema.length > 0 ? sampleTema : [
-          { nama: "Tema Utama", magnitudo: 3.0, sentimen: sentimentScore }
-        ]
-      }
+      // Catatan: Jika entitasData.value.length === 0, tabel akan kosong (ini benar).
+      
     }
   } catch (error) {
     console.error('Error parsing sentiment result:', error)
   }
-})
+}
 
 const radius = 108;
 const circumference = 2 * Math.PI * radius;
@@ -497,6 +485,7 @@ function animateCircle() {
 
 // Jalankan saat pertama kali render
 onMounted(() => {
+  loadAnalysisData()
   setTimeout(animateCircle, 300);
 });
 
