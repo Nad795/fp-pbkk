@@ -82,12 +82,13 @@ class SentimentAnalysisController extends Controller
         // ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
         return response()->json([
-            'success' => true, // Opsional, tapi baik untuk debugging
+            'success' => true,
             'text' => $displayText,
 
             // Data Sentimen
             'sentiment' => $sentimentResult['sentiment'],
             'sentiment_score' => $sentimentResult['score'],
+            'sentiment_scores' => $sentimentResult['sentiment_scores'] ?? [],
             'sentiment_details' => $sentimentResult['details'],
 
             // Data Keterbacaan
@@ -100,12 +101,14 @@ class SentimentAnalysisController extends Controller
             'statistics' => [
                 'syllable_count' => $readabilityResult['syllable_count'],
                 'avg_word_length' => $readabilityResult['avg_word_length'],
-                'avg_sentence_length' => $readabilityResult['avg_sentence_length']
+                'avg_sentence_length' => $readabilityResult['avg_sentence_length'],
+                'complex_word_count' => $readabilityResult['complex_word_count']
             ],
 
             // Data Tabel (Sesuai EntityThemeData[] di api.ts)
             'entitas_terdeteksi' => $sentimentResult['entitas'] ?? [],
             'tema_terdeteksi' => $sentimentResult['tema'] ?? [],
+            'keywords_terdeteksi' => $sentimentResult['keywords'] ?? []
         ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         
     }
@@ -173,16 +176,23 @@ class SentimentAnalysisController extends Controller
     }
 
     // Perbarui fungsi analyzeSentiment secara keseluruhan
-    private function analyzeSentiment($text)
+    private function analyzeSentiment($text, $useSenopati = true)
     {
+        // Jika memilih untuk menggunakan Senopati
+        if ($useSenopati) {
+            return $this->analyzeSentimentSenopati($text);
+        }
+
         $apiKey = \Illuminate\Support\Facades\Config::get('app.gemini_api_key') ?? $_ENV['GEMINI_API_KEY'] ?? '';
         $apiUrl = \Illuminate\Support\Facades\Config::get('app.gemini_api_url') ?? $_ENV['GEMINI_API_URL'] ?? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
         // PROMPT JSON LENGKAP
         $prompt = "Analisis sentimen, entitas, dan tema utama dari berita berikut: '{$text}'. " .
                   "Hasilkan output HANYA dalam format JSON. Jangan ada teks atau penjelasan lain di luar objek JSON. " .
-                  "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'details' (alasan mendalam), 'entitas', dan 'tema'. " .
-                  "Untuk 'entitas' dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float).";
+                  "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'sentiment_scores' (skor untuk positif, netral, dan negatif), 'details' (alasan mendalam), 'entitas', 'keywords', dan 'tema'. " .
+                  "Untuk 'sentiment_scores', sertakan skor untuk setiap kategori: 'positive', 'neutral', dan 'negative' dalam rentang 0.0 hingga 1.0. " .
+                  "Untuk 'entitas', 'keywords', dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float). " .
+                  "Contoh Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"sentiment_scores\": { \"positive\": 0.0, \"neutral\": 0.0, \"negative\": 0.0 }, \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"keywords\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] }";
 
         try {
             $response = Http::timeout(30)->post("{$apiUrl}?key={$apiKey}", [
@@ -219,9 +229,11 @@ class SentimentAnalysisController extends Controller
                 return [
                     'sentiment' => $geminiData['sentiment'] ?? 'Neutral',
                     'score' => $geminiData['score'] ?? 0.5,
+                    'sentiment_scores' => $geminiData['sentiment_scores'] ?? ['positive' => 0, 'neutral' => 0, 'negative' => 0],
                     'details' => $geminiData['details'] ?? 'Analisis detail tidak tersedia.',
-                    'entitas' => $geminiData['entitas'] ?? [], // Penting: Entitas & Tema dari Gemini
-                    'tema' => $geminiData['tema'] ?? []
+                    'entitas' => $geminiData['entitas'] ?? [],
+                    'tema' => $geminiData['tema'] ?? [],
+                    'keywords' => $geminiData['keywords'] ?? []
                 ];
 
             } else {
@@ -281,10 +293,12 @@ class SentimentAnalysisController extends Controller
             $result = ['sentiment' => 'Neutral', 'score' => 0.5, 'details' => 'Analisis fallback: netral (jumlah kata positif/negatif seimbang atau tidak ada)'];
         }
 
-        // BAGIAN KRITIS: Menambahkan kunci Entitas dan Tema kosong saat diminta data lengkap
+        // BAGIAN KRITIS: Menambahkan kunci Entitas, Tema, Keywords, dan sentiment_scores kosong saat diminta data lengkap
         if ($fullData) {
             $result['entitas'] = [];
             $result['tema'] = [];
+            $result['keywords'] = [];
+            $result['sentiment_scores'] = ['positive' => 0, 'neutral' => 0, 'negative' => 0];
         }
         
         return $result;
@@ -303,6 +317,7 @@ class SentimentAnalysisController extends Controller
         $sentenceCount = max(1, count($sentences));
         $syllableCount = 0;
         $totalCharLength = 0;
+        $complexWordCount = $this->countComplexWords($text);
 
         foreach ($words as $word) {
             $syllableCount += $this->countSyllables($word);
@@ -322,7 +337,8 @@ class SentimentAnalysisController extends Controller
             'sentence_count' => $sentenceCount,
             'syllable_count' => $syllableCount, // BARU
             'avg_word_length' => $avgWordLength, // BARU
-            'avg_sentence_length' => $avgSentenceLength // BARU
+            'avg_sentence_length' => $avgSentenceLength, // BARU
+            'complex_word_count' => $complexWordCount // BARU
         ];
     }
     // Hapus atau abaikan fungsi analyzeReadability yang lama jika masih ada.
@@ -357,5 +373,101 @@ class SentimentAnalysisController extends Controller
         }
 
         return max(1, $syllables);
+    }
+
+    private function countComplexWords($text, $minSyllables = 3)
+    {
+        $words = str_word_count($text, 1);
+        $count = 0;
+
+        foreach ($words as $word) {
+            // Hapus karakter non-alfabet di awal/akhir kata
+            $clean = trim($word, "\"'()[]{}.,;:!?-—–\n\r\t ");
+            if ($clean === '') continue;
+
+            $syllables = $this->countSyllables($clean);
+            if ($syllables >= $minSyllables) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Analisis menggunakan Senopati AI (fallback atau alternatif dari Gemini).
+     * 
+     * @param string $text
+     * @return array
+     */
+    private function analyzeSentimentSenopati($text)
+    {
+        $apiUrl = 'https://senopati.its.ac.id/senopati-lokal-dev/generate';
+
+        $prompt = "Analisis sentimen, entitas, dan tema utama dari berita berikut: '{$text}'. " .
+                  "Hasilkan output HANYA dalam format JSON. Jangan ada teks atau penjelasan lain di luar objek JSON. " .
+                  "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'sentiment_scores' (skor untuk positif, netral, dan negatif), 'details' (alasan mendalam), 'entitas', 'keywords', dan 'tema'. " .
+                  "Untuk 'sentiment_scores', sertakan skor untuk setiap kategori: 'positive', 'neutral', dan 'negative' dalam rentang 0.0 hingga 1.0. " .
+                  "Untuk 'entitas', 'keywords', dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float). " .
+                  "Contoh Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"sentiment_scores\": { \"positive\": 0.0, \"neutral\": 0.0, \"negative\": 0.0 }, \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"keywords\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] }";
+
+        try {
+            $payload = [
+                'model' => 'qwen2.5:14b',
+                'prompt' => $prompt,
+                'stream' => false
+            ];
+
+            $response = Http::timeout(60)->post($apiUrl, $payload);
+
+            if (!$response->successful()) {
+                Log::error('SENOPATI API CALL FAILED:', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                return $this->simpleSentimentAnalysis($text, true);
+            }
+
+            $result = $response->json();
+            $responseText = $result['response'] ?? '';
+
+            // Bersihkan JSON dari markdown code block
+            if (strpos($responseText, '```json') !== false) {
+                $responseText = preg_replace('/```json/', '', $responseText);
+                $responseText = preg_replace('/```/', '', $responseText);
+            }
+
+            $analysisData = json_decode(trim($responseText), true);
+
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($analysisData)) {
+                Log::warning('SENOPATI JSON PARSE FAILED:', [
+                    'raw_response' => $responseText,
+                    'json_error' => json_last_error_msg()
+                ]);
+                return $this->simpleSentimentAnalysis($text, true);
+            }
+
+            return [
+                'sentiment' => $analysisData['sentiment'] ?? 'Neutral',
+                'score' => $analysisData['score'] ?? 0.5,
+                'sentiment_scores' => $analysisData['sentiment_scores'] ?? [
+                    'positive' => 0.0,
+                    'neutral' => 0.0,
+                    'negative' => 0.0
+                ],
+                'details' => $analysisData['details'] ?? 'Analisis detail tidak tersedia.',
+                'entitas' => $analysisData['entitas'] ?? [],
+                'tema' => $analysisData['tema'] ?? [],
+                'keywords' => $analysisData['keywords'] ?? []
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('SENOPATI API EXCEPTION:', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return $this->simpleSentimentAnalysis($text, true);
+        }
     }
 }

@@ -357,6 +357,61 @@
                 </table>
               </transition>
             </div>
+
+            <!-- Table Keywords -->
+            <div class="border-b pb-4 mb-6 last:border-none last:pb-0">
+              <div class="flex justify-between items-center py-3 cursor-pointer select-none" @click="toggleExpand('keywords')">
+                <h2 class="mb-2 font-semibold text-md text-primarypurple">
+                  Keywords Terdeteksi
+                </h2>
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  class="transition-transform duration-300"
+                  :class="{ 'rotate-180': expanded.keywords }"
+                >
+                  <path
+                    d="M6 9L12 15L18 9"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <transition name="fade-slide">
+                <table v-show="expanded.keywords" class="w-full text-sm text-left border-collapse table-fixed min-w-[640px]">
+                  <thead class="text-gray-600">
+                    <tr class="border-b border-gray-200">
+                      <th class="p-2 text-center w-1/3">Keyword</th>
+                      <th class="p-2 text-center w-1/3">Magnitudo</th>
+                      <th class="p-2 text-center w-1/3">Skor Sentimen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(k, i) in keywordsData"
+                      :key="'keywords-' + i"
+                      class="border-b border-gray-100"
+                      :style="{
+                        backgroundColor: i % 2 === 0 ? '#C9DEFB' : 'transparent',
+                      }"
+                    >
+                      <td class="p-2 w-1/3">{{ k.nama }}</td>
+                      <td class="p-2 text-center w-1/3">{{ k.magnitudo }}</td>
+                      <td
+                        class="p-2 font-semibold text-center w-1/3"
+                        :style="{ backgroundColor: getSentimentColor(k.sentimen) }"
+                      >
+                        {{ k.sentimen > 0 ? "+" : "" }}{{ k.sentimen.toFixed(2) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </transition>
+            </div>
           </div>
         </div>
       </div>
@@ -373,15 +428,12 @@ const sentimentData = ref({
     negative: 0.0,
     neutral: 100.0,
     overallScore: 0.0,
-    overallSentiment: 'netral',
-
-    // Data utama dari API
-    overallScore: 0.0, // Menerima sentiment_score dari API
-    overallSentiment: 'netral' // Menerima sentiment dari API
+    overallSentiment: 'netral'
 });
 
 const entitasData = ref([]);
 const temaData = ref([]);
+const keywordsData = ref([]);
 
 // === Load data dari backend ===
 const loadAnalysisData = () => {
@@ -397,33 +449,46 @@ const loadAnalysisData = () => {
 
     if (parsed.sentiment && parsed.sentiment_score !== undefined) {
       
-      // --- 1. AMBIL DATA UTAMA DARI API (SANGAT KRITIS) ---
+      // --- 1. AMBIL sentiment_scores LANGSUNG DARI API ---
       const sentimentLabel = parsed.sentiment.toLowerCase()
       const sentimentScore = parseFloat(parsed.sentiment_score) || 0
-
-      // *Hapus semua logika perhitungan persentase manual (positive/negative/neutral)*
-      // Sebagai gantinya, Anda *harus* meminta API untuk mengembalikan persentase ini,
-      // atau menggunakan logika yang sederhana untuk visualisasi (skor -1.0 hingga 1.0)
       
-      // Contoh sederhana konversi skor (-1 hingga 1) ke persentase visual:
-      let pos = 0, neg = 0, neu = 0;
-      if (sentimentScore >= 0.2) { // Positif
-        pos = (sentimentScore * 50) + 50; // Skala ke 50-100
-        neg = 100 - pos;
-        neu = 0;
-      } else if (sentimentScore <= -0.2) { // Negatif
-        neg = (Math.abs(sentimentScore) * 50) + 50;
-        pos = 100 - neg;
-        neu = 0;
-      } else { // Netral/Dekat Nol
-        neu = 60;
-        pos = 25;
-        neg = 15;
+      // Gunakan sentiment_scores dari API jika tersedia
+      let pos = 50, neg = 25, neu = 25;
+      
+      if (parsed.sentiment_scores && typeof parsed.sentiment_scores === 'object') {
+        // Convert dari 0.0-1.0 scale ke percentage
+        pos = (parsed.sentiment_scores.positive || 0) * 100
+        neg = (parsed.sentiment_scores.negative || 0) * 100
+        neu = (parsed.sentiment_scores.neutral || 0) * 100
+        
+        // Normalize jika total tidak 100
+        const total = pos + neg + neu
+        if (total > 0 && total !== 100) {
+          pos = (pos / total) * 100
+          neg = (neg / total) * 100
+          neu = (neu / total) * 100
+        }
+      } else {
+        // Fallback: gunakan simple logic jika sentiment_scores tidak ada
+        if (sentimentScore >= 0.2) {
+          pos = (sentimentScore * 50) + 50
+          neg = 100 - pos
+          neu = 0
+        } else if (sentimentScore <= -0.2) {
+          neg = (Math.abs(sentimentScore) * 50) + 50
+          pos = 100 - neg
+          neu = 0
+        } else {
+          neu = 60
+          pos = 25
+          neg = 15
+        }
       }
       
       // Update data Sentimen Utama
       sentimentData.value = {
-        positive: pos, // Menggunakan perhitungan sederhana/visual
+        positive: pos,
         negative: neg,
         neutral: neu,
         overallScore: sentimentScore,
@@ -431,12 +496,25 @@ const loadAnalysisData = () => {
       }
 
       // --- 2. AMBIL DATA TABEL LANGSUNG DARI API (ENTITAS & TEMA) ---
-      // Ini adalah perbaikan inti dari masalah Magnitudo/Tema!
-      entitasData.value = parsed.entitas_terdeteksi || []
-      temaData.value = parsed.tema_terdeteksi || []
-
-      // Catatan: Jika entitasData.value.length === 0, tabel akan kosong (ini benar).
+      entitasData.value = (parsed.entitas_terdeteksi || []).map(e => ({
+        nama: e.nama || '',
+        magnitudo: parseFloat(e.magnitudo) || 0,
+        sentimen: parseFloat(e.skor_sentimen) || 0
+      }))
       
+      temaData.value = (parsed.tema_terdeteksi || []).map(t => ({
+        nama: t.nama || '',
+        magnitudo: parseFloat(t.magnitudo) || 0,
+        sentimen: parseFloat(t.skor_sentimen) || 0
+      }))
+
+      keywordsData.value = (parsed.keywords_terdeteksi || []).map(k => ({
+        nama: k.nama || '',
+        magnitudo: parseFloat(k.magnitudo) || 0,
+        sentimen: parseFloat(k.skor_sentimen) || 0
+      }))
+
+      console.log('Data berhasil dimuat - Entitas:', entitasData.value.length, 'Tema:', temaData.value.length, 'Keywords:', keywordsData.value.length)
     }
   } catch (error) {
     console.error('Error parsing sentiment result:', error)
@@ -501,6 +579,7 @@ const getSentimentColor = (value) => {
 const expanded = ref({
   entitas: true,
   tema: true,
+  keywords: true,
 })
 
 // Fungsi toggle

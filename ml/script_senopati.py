@@ -44,9 +44,10 @@ def analyze_news_from_html(file_path):
             "model": "qwen2.5:14b",
             "prompt": f"Analisis sentimen, entitas, dan tema utama dari berita berikut: '{plain_text}'. "
                       "Hasilkan output HANYA dalam format JSON. Jangan ada teks atau penjelasan lain di luar objek JSON. "
-                      "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'details' (alasan mendalam), 'entitas', dan 'tema'. "
-                      "Untuk 'entitas' dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float)."
-                      " Contoh Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] } ",
+                      "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'sentiment_scores' (skor untuk positif, netral, dan negatif), 'details' (alasan mendalam), 'entitas', 'keywords', dan 'tema'. "
+                      "Untuk 'sentiment_scores', sertakan skor untuk setiap kategori: 'positive', 'neutral', dan 'negative' dalam rentang 0.0 hingga 1.0. "
+                      "Untuk 'entitas', 'keywords', dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float)."
+                      " Contoh Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"sentiment_scores\": [ { \"positive\": 0.0, \"neutral\": 0.0, \"negative\": 0.0 } ], \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"keyword\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] } ",
             "stream": False
         }
         

@@ -221,19 +221,24 @@ const loadAnalysisData = () => {
     const parsed = JSON.parse(saved)
 
     const getReadabilityCategory = (score) => {
-      if (score >= 9) return 'Sangat Mudah'
-      if (score >= 8) return 'Mudah'
-      if (score >= 7) return 'Cukup Mudah'
-      if (score >= 6) return 'Standar'
-      if (score >= 5) return 'Cukup Sulit'
-      if (score >= 3) return 'Sulit'
+      if (score >= 90) return 'Sangat Mudah'
+      if (score >= 80) return 'Mudah'
+      if (score >= 70) return 'Cukup Mudah'
+      if (score >= 60) return 'Standar'
+      if (score >= 50) return 'Cukup Sulit'
+      if (score >= 30) return 'Sulit'
       return 'Sangat Sulit'
     }
 
     const readabilityScore = parseFloat(parsed.readability) || 0
     const wordCount = parseInt(parsed.word_count) || 0
     const sentenceCount = parseInt(parsed.sentence_count) || 0
-
+    const syllablesCount = parseInt(parsed.statistics.syllable_count) || 0
+    const FGL = (0.39 * (wordCount / sentenceCount) + 11.8 * (syllablesCount / wordCount) - 15.59) / 10
+    const adjustedFGL = FGL.toFixed(2)
+    const GFI = 0.4 * ((wordCount / sentenceCount) + 100 * (parsed.statistics.complex_word_count / wordCount)) / 10
+    const adjustedGFI = GFI.toFixed(2)
+  
     let adjustedScore
     if (readabilityScore < 0) {
       adjustedScore = Math.min(3, Math.abs(readabilityScore / 30)) // konversi negatif jadi rendah
@@ -252,7 +257,7 @@ const loadAnalysisData = () => {
           1
         )} dari 10. Kategori: ${category}.`,
         statistics: {
-          syllables: Math.floor(wordCount * 1.5),
+          syllables: syllablesCount,
           words: wordCount,
           sentences: sentenceCount,
           avgWordLength:
@@ -273,30 +278,17 @@ const loadAnalysisData = () => {
       },
       {
         title: 'Flesch Kincaid Grade Level',
-        score: Math.max(0.5, adjustedScore - 1),
-        level: getReadabilityCategory(Math.max(0.5, adjustedScore - 1)),
+        score: adjustedFGL,
+        level: getReadabilityCategory(adjustedFGL),
         formula:
           '0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59',
       },
       {
         title: 'Gunning Fog Index',
-        score: Math.max(1, adjustedScore - 0.5),
-        level: getReadabilityCategory(Math.max(1, adjustedScore - 0.5)),
+        score: adjustedGFI,
+        level: getReadabilityCategory(adjustedGFI),
         formula:
           '0.4 × [(words/sentences) + 100 × (complex_words/words)]',
-      },
-      {
-        title: 'SMOG Index',
-        score: Math.min(10, adjustedScore + 0.5),
-        level: getReadabilityCategory(Math.min(10, adjustedScore + 0.5)),
-        formula:
-          '1.0430 × √(polysyllables × (30/sentences)) + 3.1291',
-      },
-      {
-        title: 'Coleman Liau Index',
-        score: Math.max(2, adjustedScore - 0.8),
-        level: getReadabilityCategory(Math.max(2, adjustedScore - 0.8)),
-        formula: '0.0588 × L - 0.296 × S - 15.8',
       },
     ]
 
