@@ -6,24 +6,13 @@ const goHome = () => {
     window.location.href = '/'
 }
 
-const menus = ref([
-  {
-    title: "Tentang",
-    items: [
-      { text: "Perusahaan Kami", link: "javascript:void(0)" },
-      { text: "Produk Kami", link: "javascript:void(0)" },
-      { text: "Tim Kami", link: "javascript:void(0)" },
-    ],
-  },
-]);
-
 const address = ref([
   {
     icon: "fa-location-dot",
     text: "Kampus Institut Teknologi Sepuluh Nopember, Keputih, Sukolilo, Surabaya, East Java 60117",
   },
-  { icon: "fa-phone", text: "+61 3 8376 6284" },
-  { icon: "fa-envelope", text: "info@designingmedia.com" },
+  { icon: "fa-phone", text: "031-5994251-54, 5947274, 5945472" },
+  { icon: "fa-envelope", text: "humas@its.ac.id" },
 ]);
 </script>
 
@@ -48,55 +37,33 @@ const address = ref([
             <h4 class="mb-4 text-lg font-normal text-white">Social Media</h4>
             <div class="flex items-center mb-6">
               <a
-                href="javascript:void(0)"
+                href="https://www.facebook.com/InstitutTeknologiSepuluhNopember/"
                 class="flex items-center justify-center w-8 h-8 mr-3 text-white border rounded-full hover:border-primary hover:bg-primary hover:text-white"
               >
                 <i class="text-sm fab fa-facebook-f"></i>
               </a>
 
               <a
-                href="javascript:void(0)"
+                href="https://x.com/its_campus"
                 class="flex items-center justify-center w-8 h-8 mr-3 text-white border rounded-full hover:border-primary hover:bg-primary hover:text-white"
               >
                 <i class="text-sm fab fa-twitter"></i>
               </a>
 
               <a
-                href="javascript:void(0)"
+                href="https://www.youtube.com/@itseurekatv"
                 class="flex items-center justify-center w-8 h-8 mr-3 text-white border rounded-full hover:border-primary hover:bg-primary hover:text-white"
               >
                 <i class="text-sm fab fa-youtube"></i>
               </a>
 
               <a
-                href="javascript:void(0)"
+                href="https://www.linkedin.com/school/its-campus"
                 class="flex items-center justify-center w-8 h-8 mr-3 text-white border rounded-full hover:border-primary hover:bg-primary hover:text-white"
               >
                 <i class="text-sm fab fa-linkedin-in"></i>
               </a>
             </div>
-          </div>
-        </div>
-
-        <div
-          v-for="menu in menus"
-          :key="menu.title"
-          class="w-full px-4 sm:w-1/2 lg:w-2/12"
-        >
-          <div class="w-full mb-10">
-            <h4 class="text-[28px] font-bold text-white mb-9">
-              {{ menu.title }}
-            </h4>
-            <ul class="space-y-3">
-              <li v-for="item in menu.items" :key="item.text">
-                <a
-                  :href="item.link"
-                  class="inline-block text-base leading-loose text-white hover:text-primary"
-                >
-                  {{ item.text }}
-                </a>
-              </li>
-            </ul>
           </div>
         </div>
 

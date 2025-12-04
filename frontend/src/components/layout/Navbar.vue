@@ -54,7 +54,6 @@ import { ref } from "vue";
 const isMenuOpen = ref(false);
 const menu = ref([
   { name: "Home", href: "/" },
-  { name: "About Us", href: "#fitur" },
 ]);
 
 const scrollToSection = (href) => {

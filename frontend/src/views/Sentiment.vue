@@ -150,7 +150,7 @@
           <p class="flex items-center mb-4 text-lg font-semibold text-primarypurple">Rating Keseluruhan</p>
           <p class="items-center mb-4 text-sm text-center">
             Teks ini secara keseluruhan memiliki sentimen yang
-          <span class="font-semibold text-green-500">{{ sentimentData.overallSentiment }} {{ sentimentData.overallScore }}</span>.
+          <span :class="['font-semibold', overallSentimentClass]">{{ sentimentData.overallSentiment }} {{ sentimentData.overallScore }}</span>.
           </p>
         </div>
       </div>
@@ -365,7 +365,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import Tooltip from '@/components/Tooltip.vue'
 
 const sentimentData = ref({
@@ -373,7 +373,7 @@ const sentimentData = ref({
     negative: 0.0,
     neutral: 100.0,
     overallScore: 0.0,
-    overallSentiment: 'netral'
+    overallSentiment: 'netral',
 
     // Data utama dari API
     overallScore: 0.0, // Menerima sentiment_score dari API
@@ -507,6 +507,14 @@ const expanded = ref({
 const toggleExpand = (section) => {
   expanded.value[section] = !expanded.value[section]
 }
+
+// Computed class for overall sentiment text color
+const overallSentimentClass = computed(() => {
+  const s = (sentimentData.value.overallSentiment || '').toLowerCase();
+  if (s.includes('positif') || s === 'positive') return 'text-green-500';
+  if (s.includes('negatif') || s === 'negative') return 'text-red-500';
+  return 'text-yellow-600';
+})
 </script>
 
 <style scoped>
