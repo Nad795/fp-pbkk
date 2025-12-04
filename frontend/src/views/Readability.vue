@@ -23,9 +23,9 @@
           </h2>
           <Tooltip class="text-center"
             target="tooltip-keterbacaan"
-            text="Skor yang menunjukkan tingkat kemudahan 
-            teks untuk dibaca. Semakin tinggi nilainya, 
-            semakin mudah dipahami."
+            text="Skor yang menunjukkan tingkat 
+            kemudahan teks untuk dibaca. Semakin 
+            tinggi nilainya, semakin mudah dipahami."
             placement="top"
             noninteractive
           />

@@ -31,6 +31,27 @@ const isDragging = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 let dragCounter = 0;
 
+// Allowed file types
+const allowedExtensions = ['.pdf', '.docx', '.txt'];
+const allowedMIMEs = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain'
+];
+
+const getFileExtension = (name: string) => {
+    const idx = name.lastIndexOf('.');
+    return idx >= 0 ? name.slice(idx).toLowerCase() : '';
+}
+
+const isAllowedFile = (file?: File | null) => {
+    if (!file) return false;
+    const ext = getFileExtension(file.name || '');
+    if (allowedExtensions.includes(ext)) return true;
+    if (file.type && allowedMIMEs.includes(file.type)) return true;
+    return false;
+}
+
 // ===== DRAG & DROP (overlay) =====
 const handleGlobalDragEnter = (e: DragEvent) => {
     e.preventDefault();
@@ -56,12 +77,24 @@ const onDrop = (e: DragEvent) => {
     isDragging.value = false;
     dragCounter = 0;
     const file = e.dataTransfer?.files?.[0];
-    if (file) emit("file-uploaded", file);
+    if (file) {
+        if (!isAllowedFile(file)) {
+            alert('Format file tidak didukung. Gunakan .pdf, .docx, atau .txt');
+            return;
+        }
+        emit("file-uploaded", file);
+    }
 };
 
 const onFileSelect = (e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) emit("file-uploaded", file);
+    if (file) {
+        if (!isAllowedFile(file)) {
+            alert('Format file tidak didukung. Gunakan .pdf, .docx, atau .txt');
+            return;
+        }
+        emit("file-uploaded", file);
+    }
 };
 
 // ===== PASTE FILE / URL / TEXT =====
@@ -69,6 +102,10 @@ const onPaste = (e: ClipboardEvent) => {
   // Prioritaskan file dulu
     const pastedFile = e.clipboardData?.files?.[0];
     if (pastedFile) {
+        if (!isAllowedFile(pastedFile)) {
+            alert('Format file yang ditempel tidak didukung. Gunakan .pdf, .docx, atau .txt');
+            return;
+        }
         emit("file-uploaded", pastedFile);
         return;
     }

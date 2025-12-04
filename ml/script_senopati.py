@@ -42,11 +42,14 @@ def analyze_news_from_html(file_path):
 
         payload = {
             "model": "qwen2.5:14b",
-            "prompt": f"Analisis sentimen, entitas, dan tema utama dari berita berikut: '{plain_text}'. "
+            "prompt": f"Analisis sentimen, entitas, dan tema utama sebaik mungkin dari berita berikut: '{plain_text}'. "
                       "Hasilkan output HANYA dalam format JSON. Jangan ada teks atau penjelasan lain di luar objek JSON. "
                       "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'sentiment_scores' (skor untuk positif, netral, dan negatif), 'details' (alasan mendalam), 'entitas', 'keywords', dan 'tema'. "
-                      "Untuk 'sentiment_scores', sertakan skor untuk setiap kategori: 'positive', 'neutral', dan 'negative' dalam rentang 0.0 hingga 1.0. "
                       "Untuk 'entitas', 'keywords', dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float)."
+                      "'keywords' adalah kata atau frasa penting yang sering muncul dalam teks. Juga bisa berupa lexicon yang membawa polaritas emosional"
+                      "Untuk 'sentiment_scores', merupakan softmax probabilities untuk setiap kategori: 'positive', 'neutral', dan 'negative' dalam rentang 0.0 hingga 1.0. Nilai dari ketiga skor ini berdasarkan sentimen dari entitas, tema, dan keywords yang terdeteksi dalam teks. "
+                      "Untuk 'score', didapatkan dengan menghitung rata-rata tertimbang dari 'sentiment_scores' yang kemudian dinormalisasi ke rentang -1.0 hingga +1.0. "
+                      "Untuk 'sentiment', tetapkan 'positive' jika 'score' > 0.5, 'negative' jika 'score' < -0.5, dan 'neutral' jika di antara keduanya. "
                       " Contoh Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"sentiment_scores\": [ { \"positive\": 0.0, \"neutral\": 0.0, \"negative\": 0.0 } ], \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"keyword\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] } ",
             "stream": False
         }

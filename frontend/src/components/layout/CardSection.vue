@@ -49,6 +49,20 @@
       </div>
     </div>
 
+    <div class="z-10 mt-12 p-6 space-y-8 rounded-2xl shadow-lg border-2 border-solid border-primarypurple" data-aos="fade-up" data-aos-delay="200">
+      <div class="flex items-center justify-center">
+        <img
+          src="@/assets/image/warning.png"
+          alt="Warning"
+          class="w-[120px] h-auto mr-4"
+        />
+
+        <p class="text-left font-medium text-primarypurple text-justify">
+          Perhitungan tingkat keterbacaan pada website ini menggunakan metode yang dikembangkan untuk bahasa Inggris sehingga tidak sepenuhnya sesuai untuk teks berbahasa Indonesia.
+        </p>
+      </div>
+    </div>
+
     <div class="z-10 mt-32 mb-4 text-center" data-aos="fade-up" data-aos-delay="300">
       <p
         class="max-w-4xl mx-auto text-lg font-bold text-black md:text-xl"
@@ -89,7 +103,7 @@ const cards = [
     image: new URL("@/assets/image/card-1.png", import.meta.url).href,
     title: "1. Upload Teks Berita",
     description:
-      "Upload atau drop teks berita yang ingin dianalisis dalam bentuk .docx atau .pdf ke ReadaSense. Hanya 1 dokumen yang dapat diupload dalam satu waktu.",
+      "Drop, paste dokumen (.docx, .pdf, .txt) atau URL berita yang ingin dianalisis ke ReadaSense. Hanya 1 dokumen yang dapat diupload dalam satu waktu.",
   },
   {
     image: new URL("@/assets/image/card-2.png", import.meta.url).href,

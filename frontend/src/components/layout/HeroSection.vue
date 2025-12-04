@@ -22,14 +22,17 @@ const handleFileChange = (e: Event) => {
   >
     <div class="flex flex-col md:flex-1 text-center items-center md:text-left md:items-start z-10 md:ml-20">
       <h1 class="hero-title">Kenali nada dan makna di balik berita.</h1>
-      <p class="hero-subtitle">ReadaSense membantu memahami sentimen serta tingkat keterbacaan secara instan.</p>
-      <button class="upload-btn" @click="uploadDocument">
-        <svg class="upload-icon" viewBox="0 0 24 24" fill="none">
-          <path d="M6 20L18 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Upload Document
-      </button>
+      <p class="hero-subtitle">ReadaSense membantu memahami sentimen serta tingkat keterbacaan dari teks berbahasa Inggris secara instan.</p>
+      <div class="flex flex-col items-center">
+        <button class="upload-btn" @click="uploadDocument">
+          <svg class="upload-icon" viewBox="0 0 24 24" fill="none">
+            <path d="M6 20L18 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Upload Document
+        </button>
+        <span class="text-primarypurple text-sm">File yang diterima: .docx, .pdf, .txt</span>
+      </div>
       <input
         type="file"
         ref="fileInput"

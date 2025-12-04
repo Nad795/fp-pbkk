@@ -55,6 +55,16 @@ onMounted(() => {
 
 const handleFileUpload = async (file: File) => {
   if (!file) return
+
+  // Validate extension/MIME before doing anything
+  const fileName = file.name || '';
+  const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+  const allowed = ['.pdf', '.docx', '.txt'];
+  if (!allowed.includes(ext)) {
+    alert('Format file tidak didukung. Gunakan .pdf, .docx, atau .txt');
+    return;
+  }
+
   console.log("File diterima:", file);
   
   try {

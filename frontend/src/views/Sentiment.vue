@@ -150,7 +150,7 @@
           <p class="flex items-center mb-4 text-lg font-semibold text-primarypurple">Rating Keseluruhan</p>
           <p class="items-center mb-4 text-sm text-center">
             Teks ini secara keseluruhan memiliki sentimen yang
-          <span :class="['font-semibold', overallSentimentClass]">{{ sentimentData.overallSentiment }} {{ sentimentData.overallScore }}</span>.
+          <span :class="['font-semibold', overallSentimentClass]">{{ sentimentData.overallSentiment }} ({{ (sentimentData.overallScore).toFixed(2) }})</span>. {{ sentimentData.moreDetails }}
           </p>
         </div>
       </div>
@@ -428,7 +428,8 @@ const sentimentData = ref({
     negative: 0.0,
     neutral: 100.0,
     overallScore: 0.0,
-    overallSentiment: 'netral'
+    overallSentiment: 'netral',
+    moreDetails: ''
 });
 
 const entitasData = ref([]);
@@ -492,7 +493,8 @@ const loadAnalysisData = () => {
         negative: neg,
         neutral: neu,
         overallScore: sentimentScore,
-        overallSentiment: sentimentLabel.includes('positif') ? 'positif' : (sentimentLabel.includes('negatif') ? 'negatif' : 'netral')
+        overallSentiment: sentimentLabel.includes('positif') ? 'positif' : (sentimentLabel.includes('negatif') ? 'negatif' : 'netral'),
+        moreDetails: parsed.sentiment_details || ''
       }
 
       // --- 2. AMBIL DATA TABEL LANGSUNG DARI API (ENTITAS & TEMA) ---
