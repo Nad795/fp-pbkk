@@ -221,12 +221,12 @@ const loadAnalysisData = () => {
     const parsed = JSON.parse(saved)
 
     const getReadabilityCategory = (score) => {
-      if (score >= 90) return 'Sangat Mudah'
-      if (score >= 80) return 'Mudah'
-      if (score >= 70) return 'Cukup Mudah'
-      if (score >= 60) return 'Standar'
-      if (score >= 50) return 'Cukup Sulit'
-      if (score >= 30) return 'Sulit'
+      if (score >= 9) return 'Sangat Mudah'
+      if (score >= 8) return 'Mudah'
+      if (score >= 7) return 'Cukup Mudah'
+      if (score >= 6) return 'Standar'
+      if (score >= 5) return 'Cukup Sulit'
+      if (score >= 3) return 'Sulit'
       return 'Sangat Sulit'
     }
 

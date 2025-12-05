@@ -493,7 +493,7 @@ const loadAnalysisData = () => {
         negative: neg,
         neutral: neu,
         overallScore: sentimentScore,
-        overallSentiment: sentimentLabel.includes('positif') ? 'positif' : (sentimentLabel.includes('negatif') ? 'negatif' : 'netral'),
+        overallSentiment: sentimentLabel.includes('positive') ? 'positif' : (sentimentLabel.includes('negative') ? 'negatif' : 'netral'),
         moreDetails: parsed.sentiment_details || ''
       }
 

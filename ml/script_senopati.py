@@ -42,15 +42,18 @@ def analyze_news_from_html(file_path):
 
         payload = {
             "model": "qwen2.5:14b",
-            "prompt": f"Analisis sentimen, entitas, dan tema utama sebaik mungkin dari berita berikut: '{plain_text}'. "
-                      "Hasilkan output HANYA dalam format JSON. Jangan ada teks atau penjelasan lain di luar objek JSON. "
-                      "JSON harus memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'sentiment_scores' (skor untuk positif, netral, dan negatif), 'details' (alasan mendalam), 'entitas', 'keywords', dan 'tema'. "
-                      "Untuk 'entitas', 'keywords', dan 'tema', gunakan array objek di mana setiap objek memiliki kunci: 'nama' (string), 'magnitudo' (float), dan 'skor_sentimen' (float)."
-                      "'keywords' adalah kata atau frasa penting yang sering muncul dalam teks. Juga bisa berupa lexicon yang membawa polaritas emosional"
-                      "Untuk 'sentiment_scores', merupakan softmax probabilities untuk setiap kategori: 'positive', 'neutral', dan 'negative' dalam rentang 0.0 hingga 1.0. Nilai dari ketiga skor ini berdasarkan sentimen dari entitas, tema, dan keywords yang terdeteksi dalam teks. "
-                      "Untuk 'score', didapatkan dengan menghitung rata-rata tertimbang dari 'sentiment_scores' yang kemudian dinormalisasi ke rentang -1.0 hingga +1.0. "
-                      "Untuk 'sentiment', tetapkan 'positive' jika 'score' > 0.5, 'negative' jika 'score' < -0.5, dan 'neutral' jika di antara keduanya. "
-                      " Contoh Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"sentiment_scores\": [ { \"positive\": 0.0, \"neutral\": 0.0, \"negative\": 0.0 } ], \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"keyword\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] } ",
+            "prompt": f"Analisis MENDALAM sentimen, entitas, dan tema dari berita berikut: '{plain_text}'. "
+                      "Hasilkan output HANYA dalam format JSON valid. Jangan ada teks atau penjelasan lain di luar objek JSON. "
+                      "JSON HARUS memiliki kunci-kunci berikut: 'sentiment', 'score' (-1.0 hingga +1.0), 'sentiment_scores', 'details', 'entitas', 'keywords', dan 'tema'. "
+                      "PENTING: Deteksi MINIMAL 5-10 entitas, 5-10 keywords, dan 5-10 tema (jangan hanya 2-3). Prioritaskan berdasarkan relevansi dan frekuensi kemunculan dalam teks. "
+                      "Untuk 'sentiment_scores': object dengan keys 'positive', 'neutral', 'negative' (masing-masing 0.0-1.0, jumlah total ~1.0). "
+                      "Untuk 'entitas' (Named Entities seperti nama orang, tempat, organisasi, dll): array of objects dengan 'nama', 'magnitudo' (0.0-1.0 berdasarkan frekuensi/pentingnya), 'skor_sentimen' (-1.0 hingga +1.0). "
+                      "Untuk 'keywords' (kata/frasa yang membawa polaritas emosional atau opini): array of objects dengan 'nama', 'magnitudo' (0.0-1.0 berdasarkan beban semantik), 'skor_sentimen' (-1.0 hingga +1.0). "
+                      "Untuk 'tema' (topik/subject utama yang dibicarakan): array of objects dengan 'nama', 'magnitudo' (0.0-1.0 berdasarkan dominasi di teks), 'skor_sentimen' (-1.0 hingga +1.0). "
+                      "Untuk 'score': rata-rata tertimbang dari 'sentiment_scores' dikonversi ke -1.0 hingga +1.0. "
+                      "Untuk 'sentiment': 'positive' jika score > 0.25, 'negative' jika score < -0.25, 'neutral' sebaliknya. "
+                      "Untuk 'details': WAJIB tulis RINGKAS DALAM BAHASA INDONESIA yang menjelaskan alasan di balik penilaian sentimen. JANGAN gunakan bahasa Inggris sama sekali di bagian ini, termasuk jika teks asli berbahasa Inggris. Terjemahkan konsepnya ke Bahasa Indonesia yang baik dan benar. "
+                      "Skema JSON: { \"sentiment\": \"string\", \"score\": 0.0, \"sentiment_scores\": { \"positive\": 0.0, \"neutral\": 0.0, \"negative\": 0.0 }, \"details\": \"string\", \"entitas\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"keywords\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ], \"tema\": [ { \"nama\": \"string\", \"magnitudo\": 0.0, \"skor_sentimen\": 0.0 } ] } ",
             "stream": False
         }
         
