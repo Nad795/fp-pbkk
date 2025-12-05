@@ -533,44 +533,74 @@ class SentimentAnalysisController extends Controller
         }
 
         // Strategy 2: unzip command (works on Linux/Mac/Windows WSL)
-        if (!$xmlContent && (shell_exec('which unzip') || shell_exec('where unzip 2>nul'))) {
-            try {
-                $cmd = "unzip -p " . escapeshellarg($filePath) . " word/document.xml 2>/dev/null";
-                $output = @shell_exec($cmd);
-                
-                if ($output && strlen(trim($output)) > 0) {
-                    Log::info("DOCX extracted using unzip", ['file' => $fileName]);
-                    $xmlContent = $output;
-                    return $this->parseDocxXml($xmlContent, $fileName);
+        if (!$xmlContent) {
+            $unzipCheck = shell_exec('which unzip 2>/dev/null') ?? shell_exec('where unzip 2>&1');
+            if ($unzipCheck && strpos($unzipCheck, 'not found') === false && strpos($unzipCheck, 'could not be found') === false) {
+                try {
+                    $cmd = "unzip -p " . escapeshellarg($filePath) . " word/document.xml 2>/dev/null";
+                    $output = @shell_exec($cmd);
+                    
+                    if ($output && strlen(trim($output)) > 0) {
+                        Log::info("DOCX extracted using unzip", ['file' => $fileName]);
+                        $xmlContent = $output;
+                        return $this->parseDocxXml($xmlContent, $fileName);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("unzip extraction failed", ['file' => $fileName, 'error' => $e->getMessage()]);
                 }
-            } catch (\Exception $e) {
-                Log::warning("unzip extraction failed", ['file' => $fileName, 'error' => $e->getMessage()]);
             }
         }
 
-        // Strategy 3: 7z command (works on most systems)
-        if (!$xmlContent && (shell_exec('which 7z') || shell_exec('where 7z 2>nul'))) {
-            try {
-                $cmd = "7z x -so " . escapeshellarg($filePath) . " word/document.xml 2>/dev/null";
-                $output = @shell_exec($cmd);
-                
-                if ($output && strlen(trim($output)) > 0) {
-                    Log::info("DOCX extracted using 7z", ['file' => $fileName]);
-                    $xmlContent = $output;
-                    return $this->parseDocxXml($xmlContent, $fileName);
+        // Strategy 3: 7z command (Windows common paths + system PATH)
+        if (!$xmlContent) {
+            $sevenZipPaths = [
+                '"C:\\Program Files\\7-Zip\\7z.exe"',
+                '"C:\\Program Files (x86)\\7-Zip\\7z.exe"',
+                '7z'  // Try system PATH
+            ];
+            
+            foreach ($sevenZipPaths as $sevenZipPath) {
+                try {
+                    // Test if 7z is available
+                    $testCmd = $sevenZipPath . ' --version';
+                    $testOutput = @shell_exec($testCmd . ' 2>&1');
+                    
+                    if ($testOutput && strlen(trim($testOutput)) > 0) {
+                        // 7z found, extract the file
+                        $cmd = $sevenZipPath . ' x -so ' . escapeshellarg($filePath) . ' word/document.xml 2>nul';
+                        $output = @shell_exec($cmd);
+                        
+                        if ($output && strlen(trim($output)) > 0) {
+                            Log::info("DOCX extracted using 7z", ['file' => $fileName, 'path' => $sevenZipPath]);
+                            $xmlContent = $output;
+                            return $this->parseDocxXml($xmlContent, $fileName);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::debug("7z at $sevenZipPath failed", ['error' => $e->getMessage()]);
+                    continue;
                 }
-            } catch (\Exception $e) {
-                Log::warning("7z extraction failed", ['file' => $fileName, 'error' => $e->getMessage()]);
             }
         }
 
         // All strategies failed
+        $zipArchiveAvailable = class_exists('ZipArchive');
+        $unzipAvailable = (bool)(shell_exec('which unzip 2>/dev/null') ?? shell_exec('where unzip 2>&1'));
+        $sevenZAvailable = false;
+        
+        foreach (['"C:\\Program Files\\7-Zip\\7z.exe"', '"C:\\Program Files (x86)\\7-Zip\\7z.exe"', '7z'] as $path) {
+            if (@shell_exec($path . ' --version 2>&1')) {
+                $sevenZAvailable = true;
+                break;
+            }
+        }
+        
         Log::error('DOCX extraction failed for all strategies', [
             'file' => $fileName,
             'path' => $filePath,
-            'ZipArchive_available' => class_exists('ZipArchive'),
-            'unzip_available' => (bool)(shell_exec('which unzip') || shell_exec('where unzip 2>nul')),
-            '7z_available' => (bool)(shell_exec('which 7z') || shell_exec('where 7z 2>nul'))
+            'ZipArchive_available' => $zipArchiveAvailable,
+            'unzip_available' => $unzipAvailable,
+            '7z_available' => $sevenZAvailable
         ]);
 
         throw new \Exception(
