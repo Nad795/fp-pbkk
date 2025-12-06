@@ -176,6 +176,23 @@ class SentimentAnalysisController extends Controller
         ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     }
 
+    private function normalizeExtractedText($text)
+    {
+        // 1. Remove extra whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        // 2. Fix common PDF artifacts
+        $text = preg_replace('/\s+([.,!?;:])/', '$1', $text); // "word ." -> "word."
+        $text = preg_replace('/([.,!?;:])\s*([.,!?;:])/', '$1', $text); // ". ." -> "."
+        
+        // 3. Remove line numbers and bullets that might be detected as sentences
+        $text = preg_replace('/^\s*[\d•\-\*]+\s+/m', '', $text);
+        
+        // 4. Fix hyphenation from PDF line breaks
+        $text = preg_replace('/(\w+)-\s+(\w+)/', '$1$2', $text); // "hyph- enation" -> "hyphenation"
+        
+        return trim($text);
+    }
     private function extractTextFromFile($file)
     {
         $extension = strtolower($file->getClientOriginalExtension());
@@ -502,89 +519,6 @@ class SentimentAnalysisController extends Controller
         return trim($text);
     }
 
-    private function extractTextAlternative(\DOMDocument $dom, \DOMXPath $xpath)
-    {
-        // Extract from all paragraphs and divs that likely contain article content
-        $content = [];
-        
-        // Get all p tags
-        foreach ($xpath->query('//p') as $p) {
-            $text = trim($p->textContent);
-            if (strlen($text) > 20) {
-                $content[] = $text;
-            }
-        }
-        
-        // Get all li tags that are not in navigation
-        foreach ($xpath->query('//li') as $li) {
-            $text = trim($li->textContent);
-            if (strlen($text) > 20 && !$this->isInNav($li)) {
-                $content[] = $text;
-            }
-        }
-        
-        // Get all divs with substantial content
-        foreach ($xpath->query('//div') as $div) {
-            $text = trim($div->textContent);
-            if (strlen($text) > 100 && strlen($text) < 5000) {
-                // Check if it doesn't look like navigation/footer
-                if (!$this->isNoise($div)) {
-                    $content[] = $text;
-                }
-            }
-        }
-        
-        $result = implode(' ', $content);
-        $result = preg_replace('/\s+/', ' ', $result);
-        return trim($result);
-    }
-
-    private function isInNav(\DOMElement $element)
-    {
-        $parent = $element->parentNode;
-        for ($i = 0; $i < 5 && $parent; $i++) {
-            if ($parent->nodeName === 'nav' || 
-                ($parent->nodeName === 'div' && strpos($parent->getAttribute('class'), 'nav') !== false)) {
-                return true;
-            }
-            $parent = $parent->parentNode;
-        }
-        return false;
-    }
-
-    private function isNoise(\DOMElement $element)
-    {
-        $class = $element->getAttribute('class');
-        $id = $element->getAttribute('id');
-        
-        $noiseKeywords = ['nav', 'footer', 'sidebar', 'ad', 'comment', 'widget', 'banner', 'header'];
-        
-        foreach ($noiseKeywords as $keyword) {
-            if (stripos($class, $keyword) !== false || stripos($id, $keyword) !== false) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private function getElementText($element)
-    {
-        $text = '';
-        
-        if ($element->nodeType == XML_TEXT_NODE) {
-            $text = trim($element->textContent);
-        } else {
-            foreach ($element->childNodes as $node) {
-                $nodeText = $this->getElementText($node);
-                if (!empty($nodeText)) {
-                    $text .= $nodeText . ' ';
-                }
-            }
-        }
-        
-        return trim($text);
-    }
-
     private function extractTextFromTxt($filePath)
     {
         $text = @file_get_contents($filePath);
@@ -595,7 +529,7 @@ class SentimentAnalysisController extends Controller
         if (empty($text)) {
             throw new \Exception("File TXT kosong atau tidak memiliki konten.");
         }
-        return $text;
+        return $this->normalizeExtractedText($text);
     }
 
     private function extractTextFromPdf($filePath, $fileName)
@@ -606,6 +540,7 @@ class SentimentAnalysisController extends Controller
             if ($output && strlen(trim($output)) > 0) {
                 $output = trim($output);
                 if (strlen($output) > 0) {
+                    $output = $this->normalizeExtractedText(trim($output));
                     Log::info("PDF extracted successfully using pdftotext", ['file' => $fileName, 'size' => strlen($output)]);
                     return $output;
                 }
@@ -619,6 +554,7 @@ class SentimentAnalysisController extends Controller
             if ($output && strlen(trim($output)) > 0) {
                 $output = trim($output);
                 if (strlen($output) > 0) {
+                    $output = $this->normalizeExtractedText(trim($output));
                     Log::info("PDF extracted successfully using pdfgrep", ['file' => $fileName, 'size' => strlen($output)]);
                     return $output;
                 }
@@ -631,6 +567,7 @@ class SentimentAnalysisController extends Controller
             @shell_exec("pdftk " . escapeshellarg($filePath) . " cat output " . escapeshellarg($tmpFile));
             if (file_exists($tmpFile) && filesize($tmpFile) > 0) {
                 $output = @shell_exec("pdftotext " . escapeshellarg($tmpFile) . " -");
+                $output = $this->normalizeExtractedText(trim($output));
                 @unlink($tmpFile);
                 if ($output && strlen(trim($output)) > 0) {
                     return trim($output);
@@ -672,7 +609,7 @@ class SentimentAnalysisController extends Controller
                     
                     if ($xmlContent !== false && strlen(trim($xmlContent)) > 0) {
                         Log::info("DOCX extracted using ZipArchive", ['file' => $fileName]);
-                        return $this->parseDocxXml($xmlContent, $fileName);
+                        return $this->normalizeExtractedText($this->parseDocxXml($xmlContent, $fileName));
                     }
                 } else {
                     Log::warning("ZipArchive failed to open DOCX", [
@@ -698,7 +635,7 @@ class SentimentAnalysisController extends Controller
                     if ($output && strlen(trim($output)) > 0) {
                         Log::info("DOCX extracted using unzip", ['file' => $fileName]);
                         $xmlContent = $output;
-                        return $this->parseDocxXml($xmlContent, $fileName);
+                        return $this->normalizeExtractedText($this->parseDocxXml($xmlContent, $fileName));
                     }
                 } catch (\Exception $e) {
                     Log::warning("unzip extraction failed", ['file' => $fileName, 'error' => $e->getMessage()]);
@@ -728,7 +665,7 @@ class SentimentAnalysisController extends Controller
                         if ($output && strlen(trim($output)) > 0) {
                             Log::info("DOCX extracted using 7z", ['file' => $fileName, 'path' => $sevenZipPath]);
                             $xmlContent = $output;
-                            return $this->parseDocxXml($xmlContent, $fileName);
+                            return $this->normalizeExtractedText($this->parseDocxXml($xmlContent, $fileName));
                         }
                     }
                 } catch (\Exception $e) {
