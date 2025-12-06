@@ -122,7 +122,7 @@ const handleUrlUpload = async (url: string) => {
     }
 
     // Analisis URL sebagai teks
-    const result = await ApiService.analyzeText(`Analisis konten dari URL: ${url}`)
+    const result = await ApiService.analyzeText(`${url}`)
     console.log('Hasil analisis URL:', result)
 
     if (!result.success) {

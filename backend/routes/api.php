@@ -12,3 +12,7 @@ Route::post('analyze', [SentimentAnalysisController::class, 'analyze'])
 // Health check endpoint - ringan, tanpa middleware custom dan tanpa throttle
 Route::get('health', [SentimentAnalysisController::class, 'health'])
     ->withoutMiddleware(['throttle', 'log.requests', 'validate.text']);
+
+// Virus scanner status endpoint
+Route::get('scanner-status', [SentimentAnalysisController::class, 'scannerStatus'])
+    ->withoutMiddleware(['throttle', 'log.requests', 'validate.text']);

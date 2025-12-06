@@ -271,7 +271,7 @@ const loadAnalysisData = () => {
       },
       {
         title: 'Flesch Kincaid Reading Ease',
-        score: adjustedScore,
+        score: adjustedScore.toFixed(2),
         level: category,
         formula:
           '206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)',

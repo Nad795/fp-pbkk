@@ -31,7 +31,7 @@ const handleFileChange = (e: Event) => {
           </svg>
           Upload Document
         </button>
-        <span class="text-primarypurple text-sm">File yang diterima: .docx, .pdf, .txt</span>
+        <span class="text-primarypurple text-sm">File (Max 50 MB): .docx, .pdf, .txt</span>
       </div>
       <input
         type="file"

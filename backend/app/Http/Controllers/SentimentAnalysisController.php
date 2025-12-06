@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
+use App\Services\VirusScanner;
 
 class SentimentAnalysisController extends Controller
 {
@@ -15,6 +16,19 @@ class SentimentAnalysisController extends Controller
         return response()->json([
             'status' => 'ok',
             'message' => 'Laravel API is running',
+            'timestamp' => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    // Virus scanner status endpoint
+    public function scannerStatus()
+    {
+        $virusScanner = new VirusScanner();
+        $info = $virusScanner->getInfo();
+
+        return response()->json([
+            'status' => 'ok',
+            'virus_scanning' => $info,
             'timestamp' => date('Y-m-d H:i:s')
         ]);
     }
@@ -46,7 +60,7 @@ class SentimentAnalysisController extends Controller
         } else {
             $text = $request->input('text');
 
-            // Check if input is a URL
+            // Check if input is a URL FIRST before virus scanning
             if ($text && $this->isValidUrl($text)) {
                 Log::channel('user_activity')->info('User submitted a URL', [
                     'url' => $text,
@@ -55,8 +69,36 @@ class SentimentAnalysisController extends Controller
                 ]);
                 
                 // Extract content from URL
+                $originalUrl = $text;
                 $text = $this->extractTextFromUrl($text);
+                
+                // TAMBAHAN: Log untuk debugging
+                Log::info('URL text extraction result', [
+                    'url' => $originalUrl,
+                    'extracted_length' => strlen($text),
+                    'word_count' => str_word_count($text),
+                    'preview' => substr($text, 0, 200)
+                ]);
+                
             } else {
+                // Scan text content for virus patterns (for testing/validation)
+                if ($text) {
+                    $virusScanner = new VirusScanner();
+                    $scanResult = $virusScanner->scanText($text);
+                    
+                    if (!$scanResult['safe']) {
+                        Log::warning('Virus pattern detected in text input', [
+                            'message' => $scanResult['message'],
+                            'threats' => $scanResult['threats']
+                        ]);
+                        
+                        return response()->json([
+                            'success' => false,
+                            'error' => 'Text tidak aman: ' . $scanResult['message']
+                        ], 400);
+                    }
+                }
+                
                 Log::channel('user_activity')->info('User submitted text input', [
                     'length' => strlen($text ?? ''),
                     'ip' => $request->ip(),
@@ -65,18 +107,19 @@ class SentimentAnalysisController extends Controller
             }
         }
 
-        if (!$text) {
+        if (!$text || strlen(trim($text)) < 10) {
             return response()->json([
                 'success' => false,
-                'error' => 'Text, URL, or file is required'
+                'error' => 'Text, URL, or file is required and must contain at least 10 characters'
             ], 400);
         }
 
-        // Analisis Sentimen
-        $sentimentResult = $this->analyzeSentiment($text);
-
+        
         // Analisis Keterbacaan (Flesch Reading Ease)
         $readabilityResult = $this->analyzeReadability($text);
+        
+        // Analisis Sentimen
+        $sentimentResult = $this->analyzeSentiment($text);
 
         // Match sample response: truncate text to 500 chars with ellipsis
         $displayText = strlen($text) > 500 ? substr($text, 0, 500).'...' : $text;
@@ -92,6 +135,15 @@ class SentimentAnalysisController extends Controller
         //     'word_count' => str_word_count($text),
         //     'sentence_count' => count(preg_split('/[.!?]+/', $text, -1, PREG_SPLIT_NO_EMPTY))
         // ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        // Analisis Sentimen
+        $sentimentResult = $this->analyzeSentiment($text);
+
+        // Analisis Keterbacaan (Flesch Reading Ease)
+        $readabilityResult = $this->analyzeReadability($text);
+
+        // Match sample response: truncate text to 500 chars with ellipsis
+        $displayText = strlen($text) > 500 ? substr($text, 0, 500).'...' : $text;
 
         return response()->json([
             'success' => true,
@@ -109,7 +161,7 @@ class SentimentAnalysisController extends Controller
             'word_count' => $readabilityResult['word_count'],
             'sentence_count' => $readabilityResult['sentence_count'],
             
-            // Statistik Detail Flesch (Sesuai FleschStatistics di api.ts)
+            // Statistik Detail Flesch
             'statistics' => [
                 'syllable_count' => $readabilityResult['syllable_count'],
                 'avg_word_length' => $readabilityResult['avg_word_length'],
@@ -117,12 +169,11 @@ class SentimentAnalysisController extends Controller
                 'complex_word_count' => $readabilityResult['complex_word_count']
             ],
 
-            // Data Tabel (Sesuai EntityThemeData[] di api.ts)
+            // Data Tabel
             'entitas_terdeteksi' => $sentimentResult['entitas'] ?? [],
             'tema_terdeteksi' => $sentimentResult['tema'] ?? [],
             'keywords_terdeteksi' => $sentimentResult['keywords'] ?? []
         ], 200, [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        
     }
 
     private function extractTextFromFile($file)
@@ -130,6 +181,15 @@ class SentimentAnalysisController extends Controller
         $extension = strtolower($file->getClientOriginalExtension());
         $filePath = $file->getRealPath();
         $fileName = $file->getClientOriginalName();
+
+        Log::info('=== FILE UPLOAD RECEIVED ===', [
+            'fileName' => $fileName,
+            'extension' => $extension,
+            'filePath' => $filePath,
+            'mimeType' => $file->getMimeType(),
+            'fileExists' => file_exists($filePath),
+            'fileSize' => $file->getSize()
+        ]);
 
         // Validate file exists and is readable
         if (!file_exists($filePath) || !is_readable($filePath)) {
@@ -142,15 +202,49 @@ class SentimentAnalysisController extends Controller
             throw new \Exception("Ukuran file terlalu besar. Maksimal 50MB. File Anda: " . round(filesize($filePath) / (1024 * 1024), 2) . "MB");
         }
 
+        // PENTING: Virus scan HARUS menggunakan originalName untuk validasi ekstensi
+        $virusScanner = new VirusScanner();
+        
+        Log::info('=== CALLING VIRUS SCANNER ===', [
+            'filePath' => $filePath,
+            'originalName' => $fileName
+        ]);
+        
+        $scanResult = $virusScanner->scanFile($filePath, $fileName);
+
+        Log::info('=== VIRUS SCAN RESULT ===', [
+            'safe' => $scanResult['safe'],
+            'message' => $scanResult['message'],
+            'threats' => $scanResult['threats']
+        ]);
+
+        if (!$scanResult['safe']) {
+            Log::warning('Virus detected in uploaded file', [
+                'filename' => $fileName,
+                'message' => $scanResult['message'],
+                'threats' => $scanResult['threats']
+            ]);
+
+            throw new \Exception(
+                'File tidak aman: ' . $scanResult['message'] . 
+                (!empty($scanResult['threats']) ? ' (' . implode(', ', $scanResult['threats']) . ')' : '')
+            );
+        }
+
+        Log::info('File passed virus scan', ['filename' => $fileName, 'scanner' => $virusScanner->getInfo()['scanner_type']]);
+
+        // Process based on extension
         if ($extension === 'txt') {
             return $this->extractTextFromTxt($filePath);
         } elseif ($extension === 'pdf') {
             return $this->extractTextFromPdf($filePath, $fileName);
         } elseif ($extension === 'docx') {
             return $this->extractTextFromDocx($filePath, $fileName);
+        } elseif ($extension === 'doc') {
+            return $this->extractTextFromDoc($filePath, $fileName);
         }
 
-        throw new \Exception("Format file tidak didukung: .{$extension}. Format yang didukung: .txt, .pdf, .docx");
+        throw new \Exception("Format file tidak didukung: .{$extension}. Format yang didukung: .txt, .pdf, .docx, .doc");
     }
 
     private function isValidUrl($text)
@@ -170,9 +264,13 @@ class SentimentAnalysisController extends Controller
             Log::info("Fetching content from URL", ['url' => $url]);
 
             // Fetch URL content using Guzzle/Http
-            $response = Http::timeout(15)
+            $response = Http::timeout(30) // Increase timeout
                 ->withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language' => 'en-US,en;q=0.9',
+                    'Accept-Encoding' => 'gzip, deflate',
+                    'Connection' => 'keep-alive',
                 ])
                 ->get($url);
 
@@ -186,16 +284,32 @@ class SentimentAnalysisController extends Controller
                 throw new \Exception("URL mengembalikan konten kosong.");
             }
 
+            Log::info("HTML fetched successfully", [
+                'url' => $url,
+                'html_length' => strlen($html)
+            ]);
+
             // Extract text content from HTML
             $text = $this->extractTextFromHtml($html);
 
-            if (empty($text)) {
-                throw new \Exception("Tidak ada teks yang dapat diekstrak dari URL.");
+            if (empty($text) || strlen(trim($text)) < 50) {
+                Log::warning("Extracted text too short, trying aggressive extraction", [
+                    'url' => $url,
+                    'text_length' => strlen($text)
+                ]);
+                
+                // Try more aggressive extraction
+                $text = $this->extractTextAggressively($html);
+            }
+
+            if (empty($text) || strlen(trim($text)) < 50) {
+                throw new \Exception("Tidak ada teks yang dapat diekstrak dari URL (terlalu pendek).");
             }
 
             Log::info("Successfully extracted content from URL", [
                 'url' => $url,
-                'text_length' => strlen($text)
+                'text_length' => strlen($text),
+                'word_count' => str_word_count($text)
             ]);
 
             return $text;
@@ -203,7 +317,8 @@ class SentimentAnalysisController extends Controller
         } catch (\Exception $e) {
             Log::error("URL content extraction failed", [
                 'url' => $url,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             throw new \Exception("Gagal mengekstrak konten dari URL: " . $e->getMessage());
@@ -216,121 +331,94 @@ class SentimentAnalysisController extends Controller
             // Load HTML content
             $dom = new \DOMDocument();
             libxml_use_internal_errors(true);
-            @$dom->loadHTML('<?xml encoding="UTF-8">' . $html);
+            
+            // Add UTF-8 encoding declaration
+            $htmlWithEncoding = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+            @$dom->loadHTML($htmlWithEncoding);
             libxml_clear_errors();
 
             // Remove script and style elements
             $xpath = new \DOMXPath($dom);
             
-            // Remove script tags
-            foreach ($xpath->query('//script') as $node) {
-                $node->parentNode->removeChild($node);
-            }
-            
-            // Remove style tags
-            foreach ($xpath->query('//style') as $node) {
-                $node->parentNode->removeChild($node);
-            }
-            
-            // Remove meta, link, noscript, nav, footer (noise elements)
-            foreach ($xpath->query('//meta | //link | //noscript | //nav | //footer | //header | //aside | //button | //form') as $node) {
-                $node->parentNode->removeChild($node);
-            }
+            // Remove noise elements
+            $noiseSelectors = [
+                '//script',
+                '//style',
+                '//meta',
+                '//link',
+                '//noscript',
+                '//nav',
+                '//footer',
+                '//header',
+                '//aside',
+                '//button',
+                '//form',
+                '//iframe',
+                '//*[contains(@class, "ad")]',
+                '//*[contains(@class, "advertisement")]',
+                '//*[contains(@class, "sidebar")]',
+                '//*[contains(@class, "widget")]',
+                '//*[contains(@class, "banner")]',
+                '//*[contains(@class, "menu")]',
+                '//*[contains(@class, "navigation")]',
+                '//*[contains(@class, "comment")]',
+                '//*[contains(@id, "comment")]',
+            ];
 
-            // Remove advertisement and common ad divs
-            foreach ($xpath->query('//*[@class and (contains(@class, "ad") or contains(@class, "advertisement") or contains(@class, "sidebar") or contains(@class, "widget") or contains(@class, "banner"))]') as $node) {
-                if ($node->parentNode) {
-                    $node->parentNode->removeChild($node);
+            foreach ($noiseSelectors as $selector) {
+                foreach ($xpath->query($selector) as $node) {
+                    if ($node->parentNode) {
+                        $node->parentNode->removeChild($node);
+                    }
                 }
             }
 
-            // Try to find main content - look for article, main, or content tags
-            $mainContent = null;
-            
-            // Priority selectors - aggressive approach to find actual article content
-            $selectors = [
+            // Find main content with priority selectors
+            $contentSelectors = [
                 '//article',
                 '//main',
-                '//*[@class and contains(@class, "article")]',
-                '//*[@class and contains(@class, "post-content")]',
-                '//*[@class and contains(@class, "entry-content")]',
-                '//*[@class and contains(@class, "content")]',
-                '//*[@class and contains(@class, "story-body")]',
+                '//*[contains(@class, "article-body")]',
+                '//*[contains(@class, "article-content")]',
+                '//*[contains(@class, "post-content")]',
+                '//*[contains(@class, "entry-content")]',
+                '//*[contains(@class, "content-body")]',
+                '//*[contains(@class, "story-body")]',
+                '//*[contains(@class, "article__body")]',
+                '//*[@itemprop="articleBody"]',
+                '//*[@id="article-body"]',
                 '//*[@id="content"]',
                 '//*[@id="main"]',
                 '//*[@role="main"]',
-                '//div[@class and contains(@class, "article-content")]',
-                '//section[@class and contains(@class, "content")]',
-                '//body'
             ];
 
-            foreach ($selectors as $selector) {
+            $mainContent = null;
+            foreach ($contentSelectors as $selector) {
                 $nodes = $xpath->query($selector);
                 if ($nodes->length > 0) {
                     $mainContent = $nodes->item(0);
-                    Log::debug("Found main content using selector: $selector");
+                    Log::info("Found main content using selector: $selector");
                     break;
                 }
             }
 
-            // If no main content found, use body
             if (!$mainContent) {
+                // Fallback to body
                 $bodies = $xpath->query('//body');
                 $mainContent = $bodies->length > 0 ? $bodies->item(0) : $dom->documentElement;
+                Log::info("Using body as main content");
             }
 
-            // Extract ALL text from main content - aggressive approach
-            $text = $this->getElementText($mainContent);
+            // Extract text from main content
+            $text = $this->getCleanText($mainContent);
 
-            if (empty($text)) {
-                // Fallback: extract all p tags
-                $paragraphs = $xpath->query('//p');
-                $text = '';
-                foreach ($paragraphs as $p) {
-                    $text .= trim($p->textContent) . ' ';
-                }
-            }
+            // Additional cleanup
+            $text = $this->cleanExtractedText($text);
 
-            // Clean up text
-            $text = trim($text);
-            
-            // Replace multiple spaces with single space
-            $text = preg_replace('/\s+/', ' ', $text);
-            
-            // Remove common noise patterns (but more carefully)
-            $noisePatterns = [
-                '/\bShare this story\b/i',
-                '/\bCopy link\b/i',
-                '/\bMore from\b/i',
-                '/\bSubscribe\b/i',
-                '/\bFollow us\b/i',
-                '/\bRelated Articles?\b/i',
-                '/\bAdvertisement\b/i',
-                '/\bSponsored\b/i',
-                '/\bBy .{0,50}Updated/i',
-                '/\bBy .{0,50}at .{0,50}(UTC|AM|PM)/i',
-            ];
-            
-            foreach ($noisePatterns as $pattern) {
-                $text = preg_replace($pattern, '', $text);
-            }
-            
-            $text = preg_replace('/\s+/', ' ', $text);
-            $text = trim($text);
-
-            // Ensure we have substantial content
             $wordCount = str_word_count($text);
-            Log::info("Extracted HTML text", [
+            Log::info("Text extraction complete", [
                 'word_count' => $wordCount,
-                'char_count' => strlen($text),
-                'first_100_chars' => substr($text, 0, 100)
+                'char_count' => strlen($text)
             ]);
-
-            if ($wordCount < 50) {
-                Log::warning("Extracted text seems too short, trying alternative method");
-                // Try alternative: extract all text that's not in small elements
-                $text = $this->extractTextAlternative($dom, $xpath);
-            }
 
             return $text;
 
@@ -338,13 +426,80 @@ class SentimentAnalysisController extends Controller
             Log::warning("HTML parsing exception", ['error' => $e->getMessage()]);
             
             // Fallback: aggressive strip_tags
-            $text = strip_tags($html);
-            $text = html_entity_decode($text);
-            $text = preg_replace('/\s+/', ' ', $text);
-            $text = trim($text);
-            
-            return $text;
+            return $this->extractTextAggressively($html);
         }
+    }
+
+    private function extractTextAggressively($html)
+    {
+        // Remove all HTML tags
+        $text = strip_tags($html);
+        
+        // Decode HTML entities
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        
+        // Clean up whitespace
+        $text = preg_replace('/\s+/', ' ', $text);
+        $text = trim($text);
+        
+        Log::info("Aggressive extraction complete", [
+            'length' => strlen($text),
+            'word_count' => str_word_count($text)
+        ]);
+        
+        return $text;
+    }
+
+    private function getCleanText($element)
+    {
+        if (!$element) return '';
+        
+        $text = '';
+        
+        foreach ($element->childNodes as $node) {
+            if ($node->nodeType === XML_TEXT_NODE) {
+                $nodeText = trim($node->textContent);
+                if (!empty($nodeText)) {
+                    $text .= $nodeText . ' ';
+                }
+            } elseif ($node->nodeType === XML_ELEMENT_NODE) {
+                // Skip certain elements
+                if (in_array($node->nodeName, ['script', 'style', 'nav', 'footer', 'aside'])) {
+                    continue;
+                }
+                $text .= $this->getCleanText($node) . ' ';
+            }
+        }
+        
+        return trim($text);
+    }
+
+    private function cleanExtractedText($text)
+    {
+        // Remove multiple spaces
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        // Remove common noise patterns
+        $noisePatterns = [
+            '/\bShare\s+this\s+story\b/i',
+            '/\bCopy\s+link\b/i',
+            '/\bMore\s+from\b/i',
+            '/\bSubscribe\b/i',
+            '/\bFollow\s+us\b/i',
+            '/\bRelated\s+Articles?\b/i',
+            '/\bAdvertisement\b/i',
+            '/\bSponsored\b/i',
+            '/\bRead\s+more\b/i',
+            '/\bClick\s+here\b/i',
+        ];
+        
+        foreach ($noisePatterns as $pattern) {
+            $text = preg_replace($pattern, '', $text);
+        }
+        
+        // Final cleanup
+        $text = preg_replace('/\s+/', ' ', $text);
+        return trim($text);
     }
 
     private function extractTextAlternative(\DOMDocument $dom, \DOMXPath $xpath)
@@ -992,4 +1147,84 @@ class SentimentAnalysisController extends Controller
             return $this->simpleSentimentAnalysis($text, true);
         }
     }
+
+    private function extractTextFromDoc($filePath, $fileName)
+    {
+        try {
+            // For .doc files (old MS Word binary format), we'll use strings command or PHP
+            // Strategy 1: Try to extract using php-word if available or system command
+            
+            // Try using `strings` command to extract readable text (cross-platform)
+            if (PHP_OS_FAMILY === 'Linux' || PHP_OS_FAMILY === 'Darwin') {
+                $stringsCmd = "strings " . escapeshellarg($filePath);
+                $output = @shell_exec($stringsCmd);
+                
+                if ($output && strlen(trim($output)) > 0) {
+                    Log::info("DOC text extracted using strings command", ['file' => $fileName]);
+                    // Filter out binary garbage and extract meaningful text
+                    $lines = explode("\n", $output);
+                    $textLines = [];
+                    
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        // Keep lines that are mostly printable ASCII and have reasonable length
+                        if (strlen($line) >= 5 && strlen($line) <= 200 && preg_match('/^[\x20-\x7E]+$/', $line)) {
+                            $textLines[] = $line;
+                        }
+                    }
+                    
+                    if (!empty($textLines)) {
+                        return implode(" ", $textLines);
+                    }
+                }
+            }
+
+            // Strategy 2: Read file as binary and extract readable strings manually
+            $fileContent = file_get_contents($filePath);
+            
+            if ($fileContent === false) {
+                throw new \Exception("Tidak dapat membaca file .doc");
+            }
+
+            // Extract readable text from binary content (simple approach)
+            $text = '';
+            $readableChars = '';
+            
+            for ($i = 0; $i < strlen($fileContent); $i++) {
+                $byte = ord($fileContent[$i]);
+                
+                if (($byte >= 32 && $byte <= 126) || $byte === 10 || $byte === 13) {
+                    // Printable ASCII or newline/carriage return
+                    $readableChars .= chr($byte);
+                } else {
+                    if (strlen($readableChars) > 4) {
+                        $text .= " " . trim($readableChars);
+                    }
+                    $readableChars = '';
+                }
+            }
+            
+            if (strlen($readableChars) > 4) {
+                $text .= " " . trim($readableChars);
+            }
+            
+            $text = preg_replace('/\s+/', ' ', trim($text));
+            
+            if (strlen($text) < 10) {
+                throw new \Exception("File .doc tidak dapat diekstrak atau berisi teks yang terlalu sedikit");
+            }
+            
+            Log::info("DOC text extracted by parsing binary", ['file' => $fileName, 'length' => strlen($text)]);
+            return $text;
+            
+        } catch (\Exception $e) {
+            Log::warning("Failed to extract text from .doc file", [
+                'file' => $fileName,
+                'error' => $e->getMessage()
+            ]);
+            
+            throw new \Exception("Gagal mengekstrak teks dari file .doc: " . $e->getMessage());
+        }
+    }
 }
+

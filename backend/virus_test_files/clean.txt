@@ -1,0 +1,3 @@
+﻿This is a safe document for testing sentiment analysis.
+The API should analyze this text and provide sentiment results.
+Testing the virus scanner with valid files.
