@@ -47,6 +47,16 @@
               {{ item.name }}
             </a>
           </li>
+          <!-- Download User Manual -->
+          <li>
+            <a
+              href="/api/download-manual"
+              download="User-Manual-ReadaSense.pdf"
+              class="font-semibold transition ease-linear md:text-m text-primarypurple hover:text-opacity-80"
+            >
+              Download User Manual
+            </a>
+          </li>
         </ul>
       </nav>
     </div>

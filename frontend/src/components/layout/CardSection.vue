@@ -63,7 +63,23 @@
       </div>
     </div>
 
-    <div class="z-10 mt-32 mb-4 text-center" data-aos="fade-up" data-aos-delay="300">
+    <!-- YouTube Video Player -->
+    <div class="z-10 mt-12 w-full max-w-4xl" data-aos="fade-up" data-aos-delay="300">
+      <div class="rounded-2xl overflow-hidden shadow-lg">
+        <div class="relative w-full" style="padding-bottom: 56.25%;">
+          <iframe
+            class="absolute top-0 left-0 w-full h-full"
+            src="https://www.youtube.com/embed/XGidvAE55xg"
+            title="ReadaSense Tutorial Video"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+          ></iframe>
+        </div>
+      </div>
+    </div>
+
+    <div class="z-10 mt-32 mb-4 text-center" data-aos="fade-up" data-aos-delay="400">
       <p
         class="max-w-4xl mx-auto text-lg font-bold text-black md:text-xl"
         style="font-size: 36px; line-height: 40px;"
