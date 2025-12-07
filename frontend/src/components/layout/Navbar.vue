@@ -53,7 +53,7 @@ import { ref } from "vue";
 
 const isMenuOpen = ref(false);
 const menu = ref([
-  { name: "Home", href: "/" },
+  { name: "Home", href: "/readasense" },
 ]);
 
 const scrollToSection = (href) => {
@@ -65,7 +65,7 @@ const scrollToSection = (href) => {
 };
 
 const goHome = () => {
-    window.location.href = '/'
+    window.location.href = '/readasense'
 }
 </script>
 
