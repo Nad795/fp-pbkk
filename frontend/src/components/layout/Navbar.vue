@@ -6,7 +6,6 @@
       <div>
         <img :src="logo" alt="logo" class="w-[194px] h-[36px]" @click="goHome"/>
       </div>
-
       <!-- mobile button -->
       <div class="z-30 md:hidden">
         <button
@@ -21,14 +20,21 @@
           </span>
         </button>
       </div>
-
       <!-- navbar link -->
       <nav
         :class="[
-          `fixed inset-0 z-20 flex flex-col mt-0 md:mt-2 items-center justify-center bg-transparent md:relative md:flex md:justify-between md:flex-row
-                ${isMenuOpen ? 'block' : 'hidden'}`,
+          isMenuOpen 
+            ? 'fixed inset-0 z-20 flex flex-col mt-0 items-center justify-center bg-primarywhite opacity-100' 
+            : 'fixed inset-0 z-20 flex flex-col mt-0 items-center justify-center bg-primarywhite opacity-0 pointer-events-none',
+          'md:relative md:flex md:justify-between md:flex-row md:mt-2 md:bg-transparent md:opacity-100 md:pointer-events-auto',
+          'transition-opacity duration-300 ease-in-out'
         ]"
       >
+        <!-- Logo di menu mobile -->
+        <div v-if="isMenuOpen" class="mb-8 md:hidden">
+          <img :src="logo" alt="logo" class="w-[194px] h-[36px]" @click="goHome"/>
+        </div>
+        
         <ul
           class="flex flex-col items-center space-y-5 md:flex-row md:space-x-16 md:space-y-0"
         >
@@ -50,12 +56,10 @@
 import logo from "@/assets/image/logo.png";
 import { Icon } from "@iconify/vue";
 import { ref } from "vue";
-
 const isMenuOpen = ref(false);
 const menu = ref([
   { name: "Home", href: "/readasense" },
 ]);
-
 const scrollToSection = (href) => {
   isMenuOpen.value = false;
   const section = document.querySelector(href);
@@ -63,19 +67,15 @@ const scrollToSection = (href) => {
     section.scrollIntoView({ behavior: "smooth" });
   }
 };
-
 const goHome = () => {
     window.location.href = '/readasense'
 }
 </script>
-
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap');
-
 :root{
   --app-font: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
-
 html, body {
   font-family: var(--app-font);
 }
