@@ -50,8 +50,9 @@
           <!-- Download User Manual -->
           <li>
             <a
-              href="/api/download-manual"
-              download="User-Manual-ReadaSense.pdf"
+              href="https://drive.google.com/file/d/1-2ycqHA48YYjRU73kDvC_vLrQsFAhbja/view?usp=drive_link"
+              target="_blank"
+              rel="noopener noreferrer"
               class="font-semibold transition ease-linear md:text-m text-primarypurple hover:text-opacity-80"
             >
               Download User Manual

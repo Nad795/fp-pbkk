@@ -16,7 +16,3 @@ Route::get('health', [SentimentAnalysisController::class, 'health'])
 // Virus scanner status endpoint
 Route::get('scanner-status', [SentimentAnalysisController::class, 'scannerStatus'])
     ->withoutMiddleware(['throttle', 'log.requests', 'validate.text']);
-
-// Download user manual
-Route::get('download-manual', [SentimentAnalysisController::class, 'downloadUserManual'])
-    ->withoutMiddleware(['throttle', 'log.requests', 'validate.text']);

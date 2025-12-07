@@ -33,41 +33,6 @@ class SentimentAnalysisController extends Controller
         ]);
     }
 
-    // Download user manual from server
-    public function downloadUserManual()
-    {
-        try {
-            $filePath = public_path('downloads/User-Manual-ReadaSense.pdf');
-
-            // Check if file exists
-            if (!file_exists($filePath)) {
-                Log::warning('User manual file not found', ['path' => $filePath]);
-                return response()->json([
-                    'success' => false,
-                    'error' => 'File user manual tidak ditemukan di server'
-                ], 404);
-            }
-
-            Log::info('User manual downloaded', ['ip' => request()->ip()]);
-
-            // Download file
-            return response()->download($filePath, 'User-Manual.pdf', [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'attachment; filename="User-Manual.pdf"'
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Download user manual error', [
-                'message' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'error' => 'Gagal mengunduh file: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
     // Fungsi utama API
     public function analyze(Request $request)
     {
